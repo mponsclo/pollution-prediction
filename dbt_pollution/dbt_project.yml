@@ -1,0 +1,28 @@
+# Name your project! Project names should contain only lowercase characters
+# and underscores. A good package name should reflect your organization's
+# name or the intended use of these models
+name: 'dbt_pollution'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dbt_schneider'
+
+model-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  dbt_pollution:
+    landing:
+      +materialized: view
+    logic:
+      +materialized: table
+    presentation:
+      +materialized: table

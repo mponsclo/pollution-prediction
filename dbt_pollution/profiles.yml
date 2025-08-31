@@ -1,0 +1,18 @@
+dbt_schneider:
+  # default target when you run `dbt run` without --target
+  target: dev
+
+  outputs:
+    dev:
+      type: duckdb
+      path: dev.duckdb # local DuckDB file for development
+      schema: main
+      threads: 1
+      extensions: []
+
+    prod:
+      type: duckdb
+      path: prod.duckdb # separate file for production builds
+      schema: main
+      threads: 4
+      extensions: []
