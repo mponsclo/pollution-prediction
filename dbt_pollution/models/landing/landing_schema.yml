@@ -29,15 +29,23 @@ models:
       - name: measurement_datetime
         data_type: "datetime"
         description: "Measurement datetime"
+        data_tests:
+          - not_null
       - name: station_code
         data_type: "int"
         description: "Station code"
+        data_tests:
+          - not_null
       - name: latitude
         data_type: "float"
         description: "Latitude"
+        data_tests:
+          - not_null
       - name: longitude
         data_type: "float"
         description: "Longitude"
+        data_tests:
+          - not_null
       - name: so2_value
         data_type: "float"
         description: "SO2 value"
@@ -56,20 +64,48 @@ models:
       - name: pm2_5_value
         data_type: "float"
         description: "PM2.5 value"
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - measurement_datetime
+            - station_code
+      - relationships:
+          to: ref('lnd_instrument_data')
+          field: station_code
+          column_name: station_code
   - name: lnd_instrument_data
     description: "Instrument data"
     columns:
       - name: measurement_datetime
         data_type: "datetime"
         description: "Measurement datetime"
+        data_tests:
+          - not_null
       - name: station_code
         data_type: "int"
         description: "Station code"
+        data_tests:
+          - not_null
       - name: item_code
         data_type: "int"
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_in_set:
+              value_set: [0, 2, 4, 5, 7, 8]
       - name: average_value
         data_type: "float"
         description: "Average value"
       - name: instrument_status
         data_type: "int"
         description: "Status of the measuring instrument when the sample was taken. Values: 0 (Normal), 1 (Need for calibration), 2 (Abnormal), 4 (Power cut off), 8 (Under repair), 9 (Abnormal data)"
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_in_set:
+              value_set: [0, 1, 2, 4, 8, 9]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - measurement_datetime
+            - station_code
+            - item_code
+

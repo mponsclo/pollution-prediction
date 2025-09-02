@@ -17,6 +17,8 @@ This is an air quality prediction project analyzing South Korean pollution data.
   - `lnd_pollutants`: Pollutant reference data with standardized units
   - `lnd_measurements`: Main measurements data with hourly readings
   - `lnd_instrument_data`: Instrument readings with status codes
+- **Logic Models**: Business logic and data integration (`dbt_pollution/models/logic/`)
+  - `measurements_with_status`: **Primary analysis table** - combines measurements with instrument status
 
 ### DBT Project Structure
 - **Profile**: `dbt_schneider` with dev/prod targets
@@ -81,13 +83,25 @@ jupyter notebook dbt_pollution/analysis/
 - Production database: `dbt_pollution/prod.duckdb`
 - Access via Python: `duckdb.connect('dbt_pollution/dev.duckdb')`
 
+## Data Quality Considerations
+
+**Important**: The primary analysis table `measurements_with_status` has data quality issues to address:
+
+- **Missing Values**: Pollution measurements contain -1 values (representing null/missing data)
+- **Missing Instrument Status**: Some datetime/station combinations lack instrument_status information
+- **Data Completeness**: `lnd_measurements` has more records than `lnd_instrument_data`
+
+**Recommendation**: Use `measurements_with_status` as the single source of truth, applying appropriate data cleaning for -1 values and missing status codes.
+
 ## Key Project Tasks
 
 The project addresses three main analytical challenges:
 
-1. **Exploratory Data Analysis**: Answer specific questions about pollution patterns
-2. **Forecasting Model**: Predict hourly pollutant concentrations for specified periods
+1. **Exploratory Data Analysis**: Answer specific questions about pollution patterns using clean data
+2. **Forecasting Model**: Predict hourly pollutant concentrations for specified periods  
 3. **Anomaly Detection**: Identify instrument failures and data quality issues
+
+**Primary Analysis Table**: Use `measurements_with_status` for all tasks - it combines measurement values with instrument quality indicators.
 
 ## Dependencies
 
