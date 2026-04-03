@@ -1,185 +1,309 @@
-"""Training pipeline for time-series forecasting."""
+"""Production-ready forecasting pipeline.
+
+Uses LightGBM with Fourier features, anchor lags, target encoding,
+and an ensemble of LightGBM + Ridge + seasonal naive.
+Includes quantile regression for prediction intervals.
+"""
 
 import numpy as np
 import pandas as pd
-from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
+from sklearn.linear_model import Ridge
+from scipy.optimize import minimize
 
+from src.forecasting.features import (
+    build_train_features,
+    build_prediction_features,
+    get_feature_columns,
+    add_fourier_features,
+)
+
+
+# ---------------------------------------------------------------------------
+# Seasonal Naive baseline
+# ---------------------------------------------------------------------------
 
 def seasonal_naive_predict(
-    train_df: pd.DataFrame,
+    train_series: pd.Series,
     prediction_index: pd.DatetimeIndex,
-    col: str = "clean_value",
-    period: int = 168,  # 7 days in hours
+    period: int = 168,
 ) -> pd.Series:
-    """Baseline: use value from same hour, 7 days ago."""
-    predictions = []
-    full = train_df[col].copy()
-
+    """Baseline: value from same hour, `period` hours ago."""
+    preds = []
     for dt in prediction_index:
         lookback = dt - pd.Timedelta(hours=period)
-        if lookback in full.index:
-            predictions.append(full.loc[lookback])
+        if lookback in train_series.index:
+            preds.append(train_series.loc[lookback])
         else:
-            same_hour = full[full.index.hour == dt.hour]
-            predictions.append(same_hour.mean() if len(same_hour) > 0 else full.mean())
-
-    return pd.Series(predictions, index=prediction_index, name="seasonal_naive")
-
-
-def build_direct_features(train_df: pd.DataFrame, col: str = "clean_value") -> pd.DataFrame:
-    """Build features for direct prediction (no recursive dependency).
-
-    These features can be computed for any future datetime without knowing
-    intermediate predictions, avoiding error accumulation.
-    """
-    df = train_df[[col]].copy()
-    idx = df.index
-
-    # Temporal features
-    df["hour"] = idx.hour
-    df["day_of_week"] = idx.dayofweek
-    df["month"] = idx.month
-    df["day_of_year"] = idx.dayofyear
-    df["is_weekend"] = (idx.dayofweek >= 5).astype(int)
-
-    # Cyclical encoding
-    df["hour_sin"] = np.sin(2 * np.pi * idx.hour / 24)
-    df["hour_cos"] = np.cos(2 * np.pi * idx.hour / 24)
-    df["dow_sin"] = np.sin(2 * np.pi * idx.dayofweek / 7)
-    df["dow_cos"] = np.cos(2 * np.pi * idx.dayofweek / 7)
-    df["month_sin"] = np.sin(2 * np.pi * idx.month / 12)
-    df["month_cos"] = np.cos(2 * np.pi * idx.month / 12)
-
-    # Historical same-hour statistics (computed from the training set)
-    hourly_stats = df.groupby("hour")[col].agg(["mean", "std", "median"]).rename(
-        columns={"mean": "hour_mean", "std": "hour_std", "median": "hour_median"}
-    )
-    df = df.merge(hourly_stats, left_on="hour", right_index=True, how="left")
-
-    # Historical same-hour-and-dow statistics
-    hour_dow_stats = df.groupby(["hour", "day_of_week"])[col].agg(["mean", "std"]).rename(
-        columns={"mean": "hour_dow_mean", "std": "hour_dow_std"}
-    )
-    df = df.merge(hour_dow_stats, left_on=["hour", "day_of_week"], right_index=True, how="left")
-
-    # Historical same-month-and-hour statistics
-    month_hour_stats = df.groupby(["month", "hour"])[col].agg(["mean"]).rename(
-        columns={"mean": "month_hour_mean"}
-    )
-    df = df.merge(month_hour_stats, left_on=["month", "hour"], right_index=True, how="left")
-
-    return df
+            same_hour = train_series[train_series.index.hour == dt.hour]
+            preds.append(same_hour.mean() if len(same_hour) > 0 else train_series.mean())
+    return pd.Series(preds, index=prediction_index, name="seasonal_naive")
 
 
-def get_direct_feature_cols() -> list[str]:
-    """Return feature column names for direct prediction."""
-    return [
-        "hour", "day_of_week", "month", "day_of_year", "is_weekend",
-        "hour_sin", "hour_cos", "dow_sin", "dow_cos", "month_sin", "month_cos",
-        "hour_mean", "hour_std", "hour_median",
-        "hour_dow_mean", "hour_dow_std",
-        "month_hour_mean",
-    ]
+# ---------------------------------------------------------------------------
+# LightGBM training
+# ---------------------------------------------------------------------------
 
-
-def train_xgboost_direct(
-    train_df: pd.DataFrame,
-    target_col: str = "clean_value",
-) -> tuple[XGBRegressor, dict]:
-    """Train XGBoost with direct features (no lag dependencies).
-
-    Returns the model and the historical statistics needed for prediction.
-    """
-    df = build_direct_features(train_df, target_col)
-    feature_cols = get_direct_feature_cols()
-
-    df_clean = df.dropna(subset=feature_cols + [target_col])
-    X = df_clean[feature_cols]
-    y = df_clean[target_col]
-
-    model = XGBRegressor(
-        n_estimators=500,
-        max_depth=6,
-        learning_rate=0.05,
+def _lgbm_params(objective: str = "regression", alpha: float | None = None) -> dict:
+    params = dict(
+        n_estimators=800,
+        num_leaves=63,
+        max_depth=8,
+        learning_rate=0.03,
         subsample=0.8,
         colsample_bytree=0.8,
-        min_child_weight=5,
-        early_stopping_rounds=50,
+        min_child_samples=20,
+        reg_alpha=0.1,
+        reg_lambda=0.1,
         random_state=42,
         n_jobs=-1,
+        verbose=-1,
     )
+    if objective == "quantile" and alpha is not None:
+        params["objective"] = "quantile"
+        params["alpha"] = alpha
+    return params
 
-    split_idx = int(len(X) * 0.9)
-    X_train, X_eval = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_eval = y.iloc[:split_idx], y.iloc[split_idx:]
 
-    model.fit(
-        X_train, y_train,
-        eval_set=[(X_eval, y_eval)],
-        verbose=False,
-    )
+def train_lgbm(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_val: pd.DataFrame | None = None,
+    y_val: pd.Series | None = None,
+    objective: str = "regression",
+    alpha: float | None = None,
+) -> LGBMRegressor:
+    """Train a single LightGBM model."""
+    params = _lgbm_params(objective, alpha)
+    model = LGBMRegressor(**params)
 
-    # Store stats for prediction on new data
-    stats = {
-        "hourly": train_df.groupby(train_df.index.hour)[target_col].agg(["mean", "std", "median"]),
-        "hour_dow": train_df.groupby([train_df.index.hour, train_df.index.dayofweek])[target_col].agg(["mean", "std"]),
-        "month_hour": train_df.groupby([train_df.index.month, train_df.index.hour])[target_col].agg(["mean"]),
+    fit_kwargs = {}
+    if X_val is not None and y_val is not None:
+        fit_kwargs["eval_set"] = [(X_val, y_val)]
+        fit_kwargs["callbacks"] = [
+            __import__("lightgbm").early_stopping(50, verbose=False),
+            __import__("lightgbm").log_evaluation(0),
+        ]
+
+    model.fit(X_train, y_train, **fit_kwargs)
+    return model
+
+
+# ---------------------------------------------------------------------------
+# Ridge with Fourier features (complementary model)
+# ---------------------------------------------------------------------------
+
+def train_ridge(
+    train_series: pd.Series,
+) -> tuple[Ridge, pd.Timestamp]:
+    """Train a Ridge model using only Fourier + temporal features."""
+    epoch = train_series.index.min()
+    fourier = add_fourier_features(train_series.index, epoch)
+
+    # Add basic temporal
+    fourier["hour"] = train_series.index.hour
+    fourier["day_of_week"] = train_series.index.dayofweek
+    fourier["month"] = train_series.index.month
+
+    model = Ridge(alpha=10.0)
+    model.fit(fourier.values, train_series.values)
+    return model, epoch
+
+
+def predict_ridge(
+    model: Ridge,
+    prediction_index: pd.DatetimeIndex,
+    epoch: pd.Timestamp,
+) -> pd.Series:
+    """Predict with the Ridge Fourier model."""
+    fourier = add_fourier_features(prediction_index, epoch)
+    fourier["hour"] = prediction_index.hour
+    fourier["day_of_week"] = prediction_index.dayofweek
+    fourier["month"] = prediction_index.month
+
+    preds = model.predict(fourier.values)
+    preds = np.maximum(preds, 0)
+    return pd.Series(preds, index=prediction_index, name="ridge_fourier")
+
+
+# ---------------------------------------------------------------------------
+# Ensemble: optimized weighted average
+# ---------------------------------------------------------------------------
+
+def optimize_weights(
+    y_true: np.ndarray,
+    predictions: dict[str, np.ndarray],
+) -> dict[str, float]:
+    """Find optimal convex combination weights via MSE minimization."""
+    names = list(predictions.keys())
+    pred_matrix = np.column_stack([predictions[n] for n in names])
+
+    def objective(w):
+        combined = pred_matrix @ w
+        return np.mean((y_true - combined) ** 2)
+
+    n = len(names)
+    constraints = {"type": "eq", "fun": lambda w: w.sum() - 1.0}
+    bounds = [(0.0, 1.0)] * n
+    x0 = np.ones(n) / n
+
+    result = minimize(objective, x0, method="SLSQP", bounds=bounds, constraints=constraints)
+    return dict(zip(names, result.x))
+
+
+# ---------------------------------------------------------------------------
+# Walk-forward cross-validation
+# ---------------------------------------------------------------------------
+
+def walk_forward_cv(
+    train_series: pd.Series,
+    n_folds: int = 3,
+    test_size: int = 720,
+    min_train_size: int = 8760,
+) -> list[dict]:
+    """Generate walk-forward CV fold indices."""
+    total = len(train_series)
+    folds = []
+
+    for i in range(n_folds):
+        test_end = total - i * test_size
+        test_start = test_end - test_size
+        train_end = test_start
+
+        if train_end < min_train_size:
+            break
+
+        folds.append({
+            "train_end": train_end,
+            "test_start": test_start,
+            "test_end": test_end,
+        })
+
+    return list(reversed(folds))
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline
+# ---------------------------------------------------------------------------
+
+def train_forecast_pipeline(
+    train_series: pd.Series,
+    val_series: pd.Series | None = None,
+) -> dict:
+    """Train the full forecast ensemble.
+
+    Returns a pipeline dict with all models and artifacts needed for prediction.
+    """
+    # Build training features
+    train_feats, context = build_train_features(train_series)
+    feat_cols = get_feature_columns(train_feats)
+
+    # Drop rows with NaN (from lags/rolling at start of series)
+    valid_mask = train_feats[feat_cols].notna().all(axis=1) & train_series.notna()
+    X_train = train_feats.loc[valid_mask, feat_cols]
+    y_train = train_series.loc[valid_mask]
+
+    # Validation set (if provided)
+    X_val, y_val = None, None
+    if val_series is not None:
+        val_index = val_series.index
+        horizon_steps = np.arange(len(val_index))
+        val_feats = build_prediction_features(val_index, context, horizon_steps)
+        # Ensure same columns
+        for c in feat_cols:
+            if c not in val_feats.columns:
+                val_feats[c] = 0
+        X_val = val_feats[feat_cols].astype(float)
+        X_val = X_val.fillna(X_val.median())
+        y_val = val_series
+
+    # Handle NaN in training features
+    X_train = X_train.fillna(X_train.median())
+
+    # Train LightGBM (point estimate)
+    lgbm_model = train_lgbm(X_train, y_train, X_val, y_val, "regression")
+
+    # Train LightGBM quantile models (prediction intervals)
+    lgbm_q05 = train_lgbm(X_train, y_train, X_val, y_val, "quantile", 0.05)
+    lgbm_q95 = train_lgbm(X_train, y_train, X_val, y_val, "quantile", 0.95)
+
+    # Train Ridge Fourier model
+    ridge_model, ridge_epoch = train_ridge(train_series.dropna())
+
+    # Determine ensemble weights using validation if available
+    weights = {"lgbm": 0.6, "ridge": 0.2, "naive": 0.2}  # defaults
+
+    if val_series is not None:
+        naive_preds = seasonal_naive_predict(train_series, val_index)
+        lgbm_preds = lgbm_model.predict(X_val)
+        lgbm_preds = np.maximum(lgbm_preds, 0)
+        ridge_preds = predict_ridge(ridge_model, val_index, ridge_epoch).values
+
+        candidate_preds = {
+            "lgbm": lgbm_preds,
+            "ridge": ridge_preds,
+            "naive": naive_preds.values,
+        }
+        weights = optimize_weights(val_series.values, candidate_preds)
+
+    return {
+        "lgbm_model": lgbm_model,
+        "lgbm_q05": lgbm_q05,
+        "lgbm_q95": lgbm_q95,
+        "ridge_model": ridge_model,
+        "ridge_epoch": ridge_epoch,
+        "context": context,
+        "feat_cols": feat_cols,
+        "weights": weights,
+        "train_medians": X_train.median(),
     }
 
-    return model, stats
 
-
-def predict_direct(
-    model: XGBRegressor,
+def predict_with_pipeline(
+    pipeline: dict,
     prediction_index: pd.DatetimeIndex,
-    stats: dict,
-) -> pd.Series:
-    """Generate predictions using direct features (no recursion)."""
-    df = pd.DataFrame(index=prediction_index)
+) -> pd.DataFrame:
+    """Generate ensemble predictions with prediction intervals."""
+    context = pipeline["context"]
+    feat_cols = pipeline["feat_cols"]
+    train_series = context["train_series"]
 
-    # Temporal features
-    df["hour"] = df.index.hour
-    df["day_of_week"] = df.index.dayofweek
-    df["month"] = df.index.month
-    df["day_of_year"] = df.index.dayofyear
-    df["is_weekend"] = (df.index.dayofweek >= 5).astype(int)
+    horizon_steps = np.arange(len(prediction_index))
+    pred_feats = build_prediction_features(prediction_index, context, horizon_steps)
 
-    # Cyclical
-    df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
-    df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
-    df["dow_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
-    df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
-    df["month_sin"] = np.sin(2 * np.pi * df["month"] / 12)
-    df["month_cos"] = np.cos(2 * np.pi * df["month"] / 12)
+    # Ensure same columns and fill NaN
+    for c in feat_cols:
+        if c not in pred_feats.columns:
+            pred_feats[c] = 0
+    X = pred_feats[feat_cols].astype(float)
+    X = X.fillna(pipeline["train_medians"])
 
-    # Historical statistics
-    hourly = stats["hourly"]
-    df["hour_mean"] = df["hour"].map(hourly["mean"])
-    df["hour_std"] = df["hour"].map(hourly["std"])
-    df["hour_median"] = df["hour"].map(hourly["median"])
+    # Individual predictions
+    lgbm_preds = np.maximum(pipeline["lgbm_model"].predict(X), 0)
+    ridge_preds = predict_ridge(pipeline["ridge_model"], prediction_index, pipeline["ridge_epoch"]).values
+    naive_preds = seasonal_naive_predict(train_series, prediction_index).values
 
-    hour_dow = stats["hour_dow"]
-    for i, row in df.iterrows():
-        key = (row["hour"], row["day_of_week"])
-        if key in hour_dow.index:
-            df.loc[i, "hour_dow_mean"] = hour_dow.loc[key, "mean"]
-            df.loc[i, "hour_dow_std"] = hour_dow.loc[key, "std"]
-        else:
-            df.loc[i, "hour_dow_mean"] = hourly.loc[row["hour"], "mean"]
-            df.loc[i, "hour_dow_std"] = hourly.loc[row["hour"], "std"]
+    # Quantile predictions
+    q05 = np.maximum(pipeline["lgbm_q05"].predict(X), 0)
+    q95 = np.maximum(pipeline["lgbm_q95"].predict(X), 0)
 
-    month_hour = stats["month_hour"]
-    for i, row in df.iterrows():
-        key = (row["month"], row["hour"])
-        if key in month_hour.index:
-            df.loc[i, "month_hour_mean"] = month_hour.loc[key, "mean"]
-        else:
-            df.loc[i, "month_hour_mean"] = hourly.loc[row["hour"], "mean"]
+    # Enforce monotonicity
+    q95 = np.maximum(q95, q05)
 
-    feature_cols = get_direct_feature_cols()
-    df = df[feature_cols].astype(float)
+    # Ensemble
+    w = pipeline["weights"]
+    ensemble = (
+        w.get("lgbm", 0) * lgbm_preds
+        + w.get("ridge", 0) * ridge_preds
+        + w.get("naive", 0) * naive_preds
+    )
+    ensemble = np.maximum(ensemble, 0)
 
-    preds = model.predict(df)
-    preds = np.maximum(preds, 0)  # Pollutant values can't be negative
-
-    return pd.Series(preds, index=prediction_index, name="xgboost_direct")
+    return pd.DataFrame({
+        "ensemble": ensemble,
+        "lgbm": lgbm_preds,
+        "ridge": ridge_preds,
+        "naive": naive_preds,
+        "q05": q05,
+        "q95": q95,
+    }, index=prediction_index)
