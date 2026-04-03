@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: measurements_long
+    description: >
+      Unpivoted measurements in long format. One row per station/datetime/pollutant.
+      Created by UNION ALL of the 6 pollutant columns from lnd_measurements.
+    columns:
+      - name: measurement_datetime
+        description: Hourly measurement timestamp
+        tests:
+          - not_null
+      - name: station_code
+        description: Monitoring station identifier (204-228)
+        tests:
+          - not_null
+      - name: item_code
+        description: "Pollutant code: 0=SO2, 2=NO2, 4=CO, 5=O3, 7=PM10, 8=PM2.5"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 2, 4, 5, 7, 8]
+      - name: value
+        description: Raw measurement value (-1 indicates missing)
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - measurement_datetime
+            - station_code
+            - item_code
+
+  - name: measurements_with_status
+    description: >
+      Primary analysis table. Long-format measurements joined 1:1 with
+      instrument status and pollutant metadata.
+    columns:
+      - name: measurement_datetime
+        tests:
+          - not_null
+      - name: station_code
+        tests:
+          - not_null
+      - name: item_code
+        tests:
+          - not_null
+      - name: item_name
+        description: "Pollutant name: so2, no2, co, o3, pm10, pm2.5"
+      - name: value
+        description: Raw measurement value (-1 indicates missing)
+      - name: instrument_status
+        description: "Status code: 0=Normal, 1=Calibration, 2=Abnormal, 4=Power cut, 8=Under repair, 9=Abnormal data. NULL if no instrument record."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - measurement_datetime
+            - station_code
+            - item_code
