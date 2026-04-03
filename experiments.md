@@ -83,6 +83,27 @@
 - Ensemble beats naive on all targets (9-39% RMSE improvement)
 - Production-ready: calibrated intervals, robust to distribution shift
 
+### Experiment 6: LSTM Encoder-Decoder (NOT SELECTED)
+
+**Method**: PyTorch LSTM encoder (1 layer, 32 hidden) processes a 48h lookback window → context vector → concatenated with Fourier + temporal features → FC decoder → prediction per future hour. Direct strategy (no recursion). Training in log1p space with StandardScaler normalization.
+
+**Architecture**: LSTM(input=1, hidden=32, layers=1) → FC(32+28, 64) → ReLU → FC(64, 1)
+
+**Training**: Adam lr=0.001, batch_size=512, epochs=30, patience=7. Uses only last 8,760h (1 year) of training data.
+
+**Results** (single holdout month):
+
+| Station | Pollutant | Naive nRMSE | LSTM nRMSE | LSTM R² | LightGBM nRMSE |
+|---------|-----------|------------|------------|---------|----------------|
+| 206     | SO2       | 1.170      | 0.737      | -0.15   | 0.917          |
+| 211     | NO2       | 0.878      | 0.639      | -0.96   | 0.719          |
+| 217     | O3        | 0.767      | 0.907      | 0.01    | 0.715          |
+| 219     | CO        | 0.531      | 0.633      | -0.60   | 0.449          |
+| 225     | PM10      | 0.991      | 1.513      | -1.96   | 0.518          |
+| 228     | PM2.5     | 0.765      | 0.718      | -0.22   | 0.546          |
+
+**Conclusion**: LSTM beats naive on 3/6 targets but consistently underperforms LightGBM ensemble. Key limitations: small dataset (8,760h), CPU-only training, direct strategy loses temporal dynamics, tree models handle engineered tabular features better. Not selected for production.
+
 ---
 
 ## Task 3: Anomaly Detection
