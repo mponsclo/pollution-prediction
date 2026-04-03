@@ -8,24 +8,39 @@
 
 **Rationale**: Simple baseline that captures weekly seasonality. Establishes performance floor.
 
-*Results pending — will be populated after running the pipeline.*
+### Experiment 2: XGBoost Recursive (FAILED)
 
-### Experiment 2: XGBoost with time-series features
+**Method**: XGBoost with lag features (1h-168h), rolling stats, and diff features. Recursive prediction: each forecast feeds into lag features for subsequent hours.
 
-**Method**: XGBoost regressor with the following feature groups:
+**Result**: Catastrophic error accumulation over 720+ hours. RMSE 6-10x worse than seasonal naive for all targets. PM10 predictions drifted to 300-400 (actual range ~10-200).
+
+**Lesson**: Recursive multi-step forecasting is unsuitable for month-ahead horizons with tree-based models. Small per-step errors compound exponentially.
+
+### Experiment 3: XGBoost Direct Prediction (SELECTED)
+
+**Method**: XGBoost with features that require no recursive dependency:
 - Temporal: hour, day_of_week, month, day_of_year, is_weekend
-- Cyclical encoding: sin/cos of hour (24h), day_of_week (7d), month (12m)
-- Lag features: 1h, 2h, 3h, 6h, 12h, 24h, 48h, 168h (1 week)
-- Rolling statistics: mean/std over 6h, 12h, 24h, 168h windows
-- Diff features: 1h and 24h differences
+- Cyclical encoding: sin/cos of hour, day_of_week, month
+- Historical same-hour statistics: mean, std, median
+- Historical same-hour-and-day-of-week statistics: mean, std
+- Historical same-month-and-hour statistics: mean
 
-**Hyperparameters**: n_estimators=500, max_depth=6, learning_rate=0.05, subsample=0.8, early_stopping_rounds=50
+**Hyperparameters**: n_estimators=500, max_depth=6, learning_rate=0.05, subsample=0.8, early_stopping=50
 
-**Training**: All data before prediction period, normal status only.
+**Training**: All data before prediction period, instrument_status=0 only. Missing values forward-filled.
 
-**Prediction strategy**: Recursive — each prediction feeds into lag features for subsequent predictions.
+**Validation Results** (last month holdout):
 
-*Results pending.*
+| Station | Pollutant | Naive RMSE | XGBoost RMSE | Improvement |
+|---------|-----------|-----------|-------------|-------------|
+| 206     | SO2       | 0.00156   | 0.00125     | 19.4%       |
+| 211     | NO2       | 0.01383   | 0.00772     | 44.1%       |
+| 217     | O3        | 0.01532   | 0.01481     | 3.3%        |
+| 219     | CO        | 0.15791   | 0.14767     | 6.5%        |
+| 225     | PM10      | 32.67010  | 28.51326    | 12.7%       |
+| 228     | PM2.5     | 14.28790  | 12.23066    | 14.4%       |
+
+XGBoost direct beats seasonal naive on all 6 targets (3-44% RMSE improvement).
 
 ---
 

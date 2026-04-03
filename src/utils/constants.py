@@ -1,6 +1,9 @@
 """Project-wide constants for the air quality prediction project."""
 
-DB_PATH = "dbt_pollution/dev.duckdb"
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(PROJECT_ROOT, "dbt_pollution", "dev.duckdb")
 
 # Pollutant item codes
 ITEM_CODES = {
