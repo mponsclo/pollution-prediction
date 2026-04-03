@@ -121,6 +121,29 @@
 
 **Conclusion**: Global model only wins on PM2.5 and barely on PM10. It loses on 4/6 targets because it can't specialize per-series — the diverse pollutant types (ppm vs mg/m³, different scales and dynamics) make a single model struggle. Per-series models with rich features remain superior. **Not selected for production.**
 
+### Experiment 9: Weather Data + Cross-Pollutant for NO2 (LATEST)
+
+**Method**: Integrate hourly weather data from Open-Meteo Historical API (2021-2023). IDW-interpolated from 3 Seoul weather points to each station. 8 weather variables: temperature, humidity, pressure, wind speed/direction, precipitation, cloud cover, shortwave radiation. Cross-pollutant features enabled only for NO2 (CO↔NO2 correlation 0.78).
+
+**Weather feature strategy**:
+- Training: actual hourly weather values matched to each measurement timestamp
+- Prediction: historical month×hour weather averages (best available proxy without weather forecasts)
+
+**Results** (single holdout month — noisy, see notes):
+
+| Target | v3 (CV avg) | +weather+xpol (holdout) | Notes |
+|--------|------------|------------------------|-------|
+| SO2    | 0.92       | 0.92                   | No change |
+| NO2    | 0.72       | **0.65**               | **-9.7% — xpol + weather help** |
+| O3     | 0.72       | **0.71**               | Slight improvement |
+| CO     | 0.45       | 0.49                   | Holdout noise — CV needed |
+| PM10   | 0.52       | 0.84                   | Holdout noise |
+| PM2.5  | 0.55       | 0.68                   | Holdout noise |
+
+**Notes**: Single holdout comparison is noisy (one month, subject to seasonal effects). Walk-forward CV gives more reliable results. The weather features provide actual weather during training (strong signal) but only monthly averages during prediction (weaker), which limits the benefit for prediction.
+
+**Key insight**: Weather data helps training-time accuracy significantly, but since we don't have weather forecasts for the prediction period, the improvement at prediction time is muted. In a production system with access to weather forecast APIs, weather features would be much more impactful.
+
 ### Experiment 6: LSTM Encoder-Decoder (NOT SELECTED)
 
 **Method**: PyTorch LSTM encoder (1 layer, 32 hidden) processes a 48h lookback window → context vector → concatenated with Fourier + temporal features → FC decoder → prediction per future hour. Direct strategy (no recursion). Training in log1p space with StandardScaler normalization.

@@ -21,6 +21,10 @@ from src.forecasting.features import (
     compute_cross_pollutant_features,
     compute_cross_pollutant_for_prediction,
 )
+from src.data.weather import (
+    get_weather_for_station,
+    get_weather_features_for_prediction,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +230,8 @@ def train_forecast_pipeline(
     val_series: pd.Series | None = None,
     station_code: int | None = None,
     item_code: int | None = None,
+    station_lat: float | None = None,
+    station_lon: float | None = None,
 ) -> dict:
     """Train the full forecast ensemble.
 
@@ -246,23 +252,21 @@ def train_forecast_pipeline(
             spatial_train, spatial_ctx = compute_spatial_features(
                 station_code, item_code, train_series.index
             )
-            # Log-transform spatial features too (they're in original scale)
             for c in spatial_train.columns:
                 if "mean" in c:
                     spatial_train[c] = np.log1p(spatial_train[c])
             train_feats = _add_spatial(train_feats, spatial_train)
             feat_cols = get_feature_columns(train_feats)
         except Exception:
-            spatial_ctx = None  # graceful fallback
+            spatial_ctx = None
 
-    # Cross-pollutant features
+    # Cross-pollutant features (NO2 only — CO↔NO2 correlation of 0.78)
     xpol_ctx = None
-    if station_code is not None and item_code is not None:
+    if station_code is not None and item_code == 2:  # NO2 only
         try:
             xpol_train, xpol_ctx = compute_cross_pollutant_features(
                 station_code, item_code, train_series.index
             )
-            # Log-transform cross-pollutant values
             for c in xpol_train.columns:
                 if "lag" in c or "rmean" in c:
                     xpol_train[c] = np.log1p(xpol_train[c].clip(lower=0))
@@ -270,6 +274,19 @@ def train_forecast_pipeline(
             feat_cols = get_feature_columns(train_feats)
         except Exception:
             xpol_ctx = None
+
+    # Weather features
+    weather_meta = None
+    if station_lat is not None and station_lon is not None:
+        try:
+            weather_train = get_weather_for_station(
+                station_lat, station_lon, train_series.index
+            )
+            train_feats = _add_spatial(train_feats, weather_train)
+            feat_cols = get_feature_columns(train_feats)
+            weather_meta = {"lat": station_lat, "lon": station_lon}
+        except Exception:
+            weather_meta = None
 
     # Drop rows with NaN (from lags/rolling at start of series)
     valid_mask = train_feats[feat_cols].notna().all(axis=1) & train_log.notna()
@@ -302,6 +319,15 @@ def train_forecast_pipeline(
                     if "lag" in c or "rmean" in c:
                         xpol_val[c] = np.log1p(xpol_val[c].clip(lower=0))
                 val_feats = _add_spatial(val_feats, xpol_val)
+            except Exception:
+                pass
+
+        if weather_meta is not None:
+            try:
+                weather_val = get_weather_for_station(
+                    weather_meta["lat"], weather_meta["lon"], val_index
+                )
+                val_feats = _add_spatial(val_feats, weather_val)
             except Exception:
                 pass
 
@@ -379,6 +405,7 @@ def train_forecast_pipeline(
         "cqr_correction": cqr_correction,
         "spatial_ctx": spatial_ctx,
         "xpol_ctx": xpol_ctx,
+        "weather_meta": weather_meta,
     }
 
 
@@ -418,6 +445,18 @@ def predict_with_pipeline(
                 if "lag" in c or "rmean" in c:
                     xpol_pred[c] = np.log1p(xpol_pred[c].clip(lower=0))
             pred_feats = _add_spatial(pred_feats, xpol_pred)
+        except Exception:
+            pass
+
+    # Weather features (use historical averages for future timestamps)
+    if pipeline.get("weather_meta") is not None:
+        try:
+            weather_pred = get_weather_features_for_prediction(
+                prediction_index,
+                pipeline["weather_meta"]["lat"],
+                pipeline["weather_meta"]["lon"],
+            )
+            pred_feats = _add_spatial(pred_feats, weather_pred)
         except Exception:
             pass
 
