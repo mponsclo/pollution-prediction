@@ -265,6 +265,138 @@ def get_feature_columns(df: pd.DataFrame) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Cross-pollutant features
+# ---------------------------------------------------------------------------
+
+def compute_cross_pollutant_features(
+    station_code: int,
+    target_item_code: int,
+    train_index: pd.DatetimeIndex,
+    db_path: str | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """Compute features from other pollutants at the same station.
+
+    For each non-target pollutant, adds anchor lags (168h, 336h) and
+    historical hourly means as features.
+    """
+    import duckdb
+    from src.utils.constants import DB_PATH, ITEM_NAMES
+
+    path = db_path or DB_PATH
+    con = duckdb.connect(path, read_only=True)
+
+    other_items = [ic for ic in ITEM_NAMES if ic != target_item_code]
+
+    # Load other pollutants for this station
+    placeholders = ",".join(str(c) for c in other_items)
+    data = con.sql(f"""
+        SELECT measurement_datetime, item_code, clean_value
+        FROM measurements_clean
+        WHERE station_code = {station_code}
+          AND item_code IN ({placeholders})
+          AND instrument_status = 0
+          AND clean_value IS NOT NULL
+        ORDER BY measurement_datetime
+    """).df()
+    con.close()
+
+    data["measurement_datetime"] = pd.to_datetime(data["measurement_datetime"])
+
+    # Pivot to wide format
+    pivot = data.pivot_table(
+        index="measurement_datetime", columns="item_code", values="clean_value"
+    )
+    pivot = pivot.reindex(train_index).ffill().bfill()
+
+    df = pd.DataFrame(index=train_index)
+    hourly_stats = {}
+
+    for ic in other_items:
+        pname = ITEM_NAMES.get(ic, str(ic))
+        if ic not in pivot.columns:
+            continue
+
+        series = pivot[ic]
+
+        # Anchor lags from other pollutants
+        for lag in (168, 336):
+            df[f"xpol_{pname}_lag{lag}h"] = series.shift(lag).values
+
+        # Rolling mean (24h) of other pollutant
+        df[f"xpol_{pname}_rmean24"] = series.shift(1).rolling(24, min_periods=1).mean().values
+
+        # Historical hourly mean for prediction
+        hourly_stats[ic] = series.groupby(series.index.hour).mean().to_dict()
+
+    ctx = {
+        "other_items": other_items,
+        "hourly_stats": hourly_stats,
+        "station_code": station_code,
+    }
+
+    return df, ctx
+
+
+def compute_cross_pollutant_for_prediction(
+    prediction_index: pd.DatetimeIndex,
+    xpol_ctx: dict,
+    train_index_end: pd.Timestamp,
+    db_path: str | None = None,
+) -> pd.DataFrame:
+    """Compute cross-pollutant features for future timestamps."""
+    import duckdb
+    from src.utils.constants import DB_PATH, ITEM_NAMES
+
+    path = db_path or DB_PATH
+    con = duckdb.connect(path, read_only=True)
+
+    station_code = xpol_ctx["station_code"]
+    other_items = xpol_ctx["other_items"]
+    hourly_stats = xpol_ctx["hourly_stats"]
+
+    df = pd.DataFrame(index=prediction_index)
+
+    # Load recent data for anchor lags
+    placeholders = ",".join(str(c) for c in other_items)
+    recent = con.sql(f"""
+        SELECT measurement_datetime, item_code, clean_value
+        FROM measurements_clean
+        WHERE station_code = {station_code}
+          AND item_code IN ({placeholders})
+          AND instrument_status = 0
+          AND clean_value IS NOT NULL
+        ORDER BY measurement_datetime
+    """).df()
+    con.close()
+
+    recent["measurement_datetime"] = pd.to_datetime(recent["measurement_datetime"])
+    pivot = recent.pivot_table(
+        index="measurement_datetime", columns="item_code", values="clean_value"
+    )
+
+    for ic in other_items:
+        pname = ITEM_NAMES.get(ic, str(ic))
+        if ic not in pivot.columns:
+            continue
+
+        series = pivot[ic]
+
+        # Anchor lags from actual data
+        for lag in (168, 336):
+            lookback = prediction_index - pd.Timedelta(hours=lag)
+            vals = series.reindex(lookback)
+            df[f"xpol_{pname}_lag{lag}h"] = vals.values
+
+        # Use hourly mean as rolling mean proxy for future
+        if ic in hourly_stats:
+            df[f"xpol_{pname}_rmean24"] = pd.Series(
+                prediction_index.hour, index=prediction_index
+            ).map(hourly_stats[ic]).values
+
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Cross-station spatial features
 # ---------------------------------------------------------------------------
 

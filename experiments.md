@@ -83,6 +83,44 @@
 - Ensemble beats naive on all targets (9-39% RMSE improvement)
 - Production-ready: calibrated intervals, robust to distribution shift
 
+### Experiment 7: Cross-Pollutant Features (IMPROVEMENT FOR SOME TARGETS)
+
+**Method**: Add features from other pollutants at the same station to the Exp 5 pipeline. For each non-target pollutant: anchor lags (168h, 336h) and 24h rolling mean.
+
+**Rationale**: Strong inter-pollutant correlations exist — CO↔NO2 (0.78), PM10↔PM2.5 (0.84), NO2↔O3 (-0.52). These are predictive signals the per-pollutant model ignores.
+
+**Results** (single holdout month):
+
+| Target | Without xpol | With xpol | Change |
+|--------|-------------|-----------|--------|
+| SO2 | 0.92 | 0.92 | — |
+| NO2 | 0.72 | **0.66** | **-8.3%** |
+| O3 | 0.72 | **0.71** | -1.4% |
+| CO | 0.45 | 0.49 | +8.9% (worse) |
+| PM10 | 0.52 | 0.84 | +61.5% (worse) |
+| PM2.5 | 0.55 | 0.69 | +25.5% (worse) |
+
+**Conclusion**: Cross-pollutant features significantly help NO2 (the CO↔NO2 correlation pays off). However, they hurt PM10 and PM2.5 — likely because the extra features introduce noise without enough signal for the particulate matter pollutants. Single holdout validation is noisy; walk-forward CV would give a more definitive answer. **Selectively useful** — best for targets with strong cross-pollutant correlations.
+
+### Experiment 8: Global Model — All Stations × Pollutants (NOT SELECTED)
+
+**Method**: Single LightGBM trained on 500K rows across all 25 stations and 6 pollutants, with `station_code`, `item_code`, latitude, longitude as features. Log1p target, Fourier features, per-group historical statistics.
+
+**Rationale**: More training data → better generalization. Model learns transferable patterns.
+
+**Results** (single holdout month):
+
+| Target | Naive nRMSE | Global nRMSE | vs Naive |
+|--------|------------|-------------|----------|
+| SO2 | 1.17 | 1.91 | Worse |
+| NO2 | 0.88 | 1.05 | Worse |
+| O3 | 0.77 | 0.98 | Worse |
+| CO | 0.53 | 0.76 | Worse |
+| PM10 | 0.99 | 0.93 | Slight improvement |
+| PM2.5 | 0.77 | **0.64** | **17% better** |
+
+**Conclusion**: Global model only wins on PM2.5 and barely on PM10. It loses on 4/6 targets because it can't specialize per-series — the diverse pollutant types (ppm vs mg/m³, different scales and dynamics) make a single model struggle. Per-series models with rich features remain superior. **Not selected for production.**
+
 ### Experiment 6: LSTM Encoder-Decoder (NOT SELECTED)
 
 **Method**: PyTorch LSTM encoder (1 layer, 32 hidden) processes a 48h lookback window → context vector → concatenated with Fourier + temporal features → FC decoder → prediction per future hour. Direct strategy (no recursion). Training in log1p space with StandardScaler normalization.

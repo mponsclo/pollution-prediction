@@ -18,6 +18,8 @@ from src.forecasting.features import (
     add_fourier_features,
     compute_spatial_features,
     compute_spatial_features_for_prediction,
+    compute_cross_pollutant_features,
+    compute_cross_pollutant_for_prediction,
 )
 
 
@@ -253,6 +255,22 @@ def train_forecast_pipeline(
         except Exception:
             spatial_ctx = None  # graceful fallback
 
+    # Cross-pollutant features
+    xpol_ctx = None
+    if station_code is not None and item_code is not None:
+        try:
+            xpol_train, xpol_ctx = compute_cross_pollutant_features(
+                station_code, item_code, train_series.index
+            )
+            # Log-transform cross-pollutant values
+            for c in xpol_train.columns:
+                if "lag" in c or "rmean" in c:
+                    xpol_train[c] = np.log1p(xpol_train[c].clip(lower=0))
+            train_feats = _add_spatial(train_feats, xpol_train)
+            feat_cols = get_feature_columns(train_feats)
+        except Exception:
+            xpol_ctx = None
+
     # Drop rows with NaN (from lags/rolling at start of series)
     valid_mask = train_feats[feat_cols].notna().all(axis=1) & train_log.notna()
     X_train = train_feats.loc[valid_mask, feat_cols]
@@ -272,6 +290,18 @@ def train_forecast_pipeline(
                     if "mean" in c:
                         spatial_val[c] = np.log1p(spatial_val[c])
                 val_feats = _add_spatial(val_feats, spatial_val)
+            except Exception:
+                pass
+
+        if xpol_ctx is not None:
+            try:
+                xpol_val = compute_cross_pollutant_for_prediction(
+                    val_index, xpol_ctx, train_series.index[-1]
+                )
+                for c in xpol_val.columns:
+                    if "lag" in c or "rmean" in c:
+                        xpol_val[c] = np.log1p(xpol_val[c].clip(lower=0))
+                val_feats = _add_spatial(val_feats, xpol_val)
             except Exception:
                 pass
 
@@ -348,6 +378,7 @@ def train_forecast_pipeline(
         "train_medians": train_medians,
         "cqr_correction": cqr_correction,
         "spatial_ctx": spatial_ctx,
+        "xpol_ctx": xpol_ctx,
     }
 
 
@@ -373,6 +404,20 @@ def predict_with_pipeline(
                 if "mean" in c:
                     spatial_pred[c] = np.log1p(spatial_pred[c])
             pred_feats = _add_spatial(pred_feats, spatial_pred)
+        except Exception:
+            pass
+
+    # Cross-pollutant features
+    if pipeline.get("xpol_ctx") is not None:
+        try:
+            xpol_pred = compute_cross_pollutant_for_prediction(
+                prediction_index, pipeline["xpol_ctx"],
+                train_series_orig.index[-1]
+            )
+            for c in xpol_pred.columns:
+                if "lag" in c or "rmean" in c:
+                    xpol_pred[c] = np.log1p(xpol_pred[c].clip(lower=0))
+            pred_feats = _add_spatial(pred_feats, xpol_pred)
         except Exception:
             pass
 
