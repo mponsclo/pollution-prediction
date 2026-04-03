@@ -57,3 +57,37 @@ models:
             - measurement_datetime
             - station_code
             - item_code
+
+  - name: measurements_clean
+    description: >
+      Cleaned measurements with null handling, temporal features, and air quality
+      classification. Use this table for all analysis and ML tasks.
+    columns:
+      - name: measurement_datetime
+        tests:
+          - not_null
+      - name: station_code
+        tests:
+          - not_null
+      - name: item_code
+        tests:
+          - not_null
+      - name: clean_value
+        description: "Measurement value with -1 replaced by NULL"
+      - name: air_quality
+        description: "Quality category: Good, Normal, Bad, Very bad (NULL if missing)"
+        tests:
+          - accepted_values:
+              values: ['Good', 'Normal', 'Bad', 'Very bad']
+              config:
+                where: "air_quality IS NOT NULL"
+      - name: season
+        tests:
+          - accepted_values:
+              values: ['Winter', 'Spring', 'Summer', 'Fall']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - measurement_datetime
+            - station_code
+            - item_code

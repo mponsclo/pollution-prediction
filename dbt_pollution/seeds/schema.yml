@@ -1,0 +1,73 @@
+version: 2
+
+seeds:
+  - name: pollutant_data
+    description: "Reference data containing pollutant thresholds and measurement units"
+    columns:
+      - name: item_code
+        description: "Unique identifier for each pollutant type"
+        tests:
+          - not_null
+          - unique
+      - name: item_name
+        description: "Name of the pollutant (SO2, NO2, CO, O3, PM10, PM2.5)"
+        tests:
+          - not_null
+      - name: unit_of_measurement
+        description: "Unit of measurement for the pollutant values"
+        tests:
+          - not_null
+      - name: good
+        description: "Upper threshold for 'good' air quality rating"
+        tests:
+          - not_null
+      - name: normal
+        description: "Upper threshold for 'normal' air quality rating"
+        tests:
+          - not_null
+      - name: bad
+        description: "Upper threshold for 'bad' air quality rating"
+        tests:
+          - not_null
+      - name: very_bad
+        description: "Upper threshold for 'very bad' air quality rating"
+        tests:
+          - not_null
+
+  - name: instrument_data
+    description: "Per-pollutant instrument readings with quality status codes"
+    columns:
+      - name: measurement_date
+        description: "Hourly timestamp of the measurement"
+        tests:
+          - not_null
+      - name: station_code
+        description: "Monitoring station identifier (204-228)"
+        tests:
+          - not_null
+      - name: item_code
+        description: "Pollutant code (0=SO2, 2=NO2, 4=CO, 5=O3, 7=PM10, 8=PM2.5)"
+        tests:
+          - not_null
+      - name: average_value
+        description: "Average measured value for the pollutant"
+      - name: instrument_status
+        description: "Status code: 0=Normal, 1=Calibration, 2=Abnormal, 4=Power cut, 8=Under repair, 9=Abnormal data"
+        tests:
+          - not_null
+
+  - name: measurement_data
+    description: "Wide-format hourly air quality measurements from monitoring stations"
+    columns:
+      - name: measurement_date
+        description: "Hourly timestamp of the measurement"
+        tests:
+          - not_null
+      - name: station_code
+        description: "Monitoring station identifier (204-228)"
+        tests:
+          - not_null
+      - name: latitude
+        description: "Station latitude coordinate"
+      - name: longitude
+        description: "Station longitude coordinate"
