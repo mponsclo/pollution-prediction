@@ -121,28 +121,39 @@
 
 **Conclusion**: Global model only wins on PM2.5 and barely on PM10. It loses on 4/6 targets because it can't specialize per-series — the diverse pollutant types (ppm vs mg/m³, different scales and dynamics) make a single model struggle. Per-series models with rich features remain superior. **Not selected for production.**
 
-### Experiment 9: Weather Data + Cross-Pollutant for NO2 (LATEST)
+### Experiment 9: Weather Data + Cross-Pollutant for NO2 (NOT SELECTED)
 
-**Method**: Integrate hourly weather data from Open-Meteo Historical API (2021-2023). IDW-interpolated from 3 Seoul weather points to each station. 8 weather variables: temperature, humidity, pressure, wind speed/direction, precipitation, cloud cover, shortwave radiation. Cross-pollutant features enabled only for NO2 (CO↔NO2 correlation 0.78).
+**Method**: Integrate hourly weather from Open-Meteo (2021-2023, IDW from 3 Seoul points). 8 variables: temperature, humidity, pressure, wind, precipitation, cloud cover, radiation. Cross-pollutant features for NO2 only.
 
-**Weather feature strategy**:
-- Training: actual hourly weather values matched to each measurement timestamp
-- Prediction: historical month×hour weather averages (best available proxy without weather forecasts)
+**Walk-Forward CV Results (3 folds × 720h) — definitive comparison**:
 
-**Results** (single holdout month — noisy, see notes):
+| Target | No Weather (Exp 5) | +Weather+xpol(NO2) | Delta | Winner |
+|--------|-------------------|--------------------|----|--------|
+| SO2    | 0.917             | 0.917              | 0.0% | Tie |
+| NO2    | 0.712             | 0.708              | -0.6% | Weather (marginal) |
+| O3     | 0.715             | 0.713              | -0.3% | Weather (marginal) |
+| CO     | 0.449             | 0.448              | -0.2% | Weather (marginal) |
+| PM10   | 0.518             | 0.520              | +0.4% | No weather |
+| PM2.5  | 0.546             | 0.544              | -0.4% | Weather (marginal) |
 
-| Target | v3 (CV avg) | +weather+xpol (holdout) | Notes |
-|--------|------------|------------------------|-------|
-| SO2    | 0.92       | 0.92                   | No change |
-| NO2    | 0.72       | **0.65**               | **-9.7% — xpol + weather help** |
-| O3     | 0.72       | **0.71**               | Slight improvement |
-| CO     | 0.45       | 0.49                   | Holdout noise — CV needed |
-| PM10   | 0.52       | 0.84                   | Holdout noise |
-| PM2.5  | 0.55       | 0.68                   | Holdout noise |
+**Conclusion**: Weather and cross-pollutant features provide **negligible improvement** on walk-forward CV (0.0-0.6% deltas — within noise). This is because we lack weather *forecasts* for the prediction period and fall back to monthly×hourly averages, which are redundant with existing temporal features. **Not selected** — adds API dependency for no gain. In a system with access to actual weather forecasts, this would be transformative.
 
-**Notes**: Single holdout comparison is noisy (one month, subject to seasonal effects). Walk-forward CV gives more reliable results. The weather features provide actual weather during training (strong signal) but only monthly averages during prediction (weaker), which limits the benefit for prediction.
+---
 
-**Key insight**: Weather data helps training-time accuracy significantly, but since we don't have weather forecasts for the prediction period, the improvement at prediction time is muted. In a production system with access to weather forecast APIs, weather features would be much more impactful.
+## Task 2: Final Verdict
+
+**Production model: Experiment 5** — LightGBM ensemble with log1p transform, Fourier features, anchor lags, target encoding, spatial IDW features, CQR-calibrated 90% prediction intervals.
+
+| Target | nRMSE | vs Naive | PI Coverage |
+|--------|-------|---------|-------------|
+| SO2    | 0.917 | +14%    | 93.8%       |
+| NO2    | 0.712 | +18%    | 91.7%       |
+| O3     | 0.715 | +9%     | 90.5%       |
+| CO     | 0.449 | +26%    | 93.6%       |
+| PM10   | 0.518 | +39%    | 93.1%       |
+| PM2.5  | 0.546 | +27%    | 93.5%       |
+
+**9 experiments tested, 4 rejected** (recursive, LSTM, global, weather). The model ceiling without exogenous weather forecasts is ~nRMSE 0.45.
 
 ### Experiment 6: LSTM Encoder-Decoder (NOT SELECTED)
 
