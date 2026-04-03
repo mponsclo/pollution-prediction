@@ -4,107 +4,60 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an air quality prediction project analyzing South Korean pollution data. The project uses DBT (data build tool) with DuckDB for data transformation and processing, along with Python for analysis and machine learning tasks.
+Air quality prediction project analyzing South Korean pollution data (25 stations, 2021-2023, 6 pollutants). Uses DBT/DuckDB for data transformation and Python for ML.
 
 ## Architecture
 
-### Data Layer
-- **Seeds**: Raw CSV data files in `dbt_pollution/seeds/`
-  - `pollutant_data.csv`: Reference data with pollutant thresholds
-  - `instrument_data.csv`: Monitoring instrument information
-  - `measurement_data.csv`: Time-series pollution measurements
-- **Landing Models**: Clean and standardize raw data (`dbt_pollution/models/landing/`)
-  - `lnd_pollutants`: Pollutant reference data with standardized units
-  - `lnd_measurements`: Main measurements data with hourly readings
-  - `lnd_instrument_data`: Instrument readings with status codes
-- **Logic Models**: Business logic and data integration (`dbt_pollution/models/logic/`)
-  - `measurements_with_status`: **Primary analysis table** - combines measurements with instrument status
+### DBT Models (`dbt_pollution/models/`)
 
-### DBT Project Structure
-- **Profile**: `dbt_schneider` with dev/prod targets
-- **Materialization Strategy**:
-  - Landing: Views for data cleaning
-  - Logic: Tables for business logic
-  - Presentation: Tables for final output
-- **Database**: DuckDB files (`dev.duckdb`, `prod.duckdb`)
+```
+Seeds (CSV) → Landing (views) → Logic (tables) → Presentation (tables)
+```
+
+- **Landing**: `lnd_measurements` (wide), `lnd_instrument_data` (long), `lnd_pollutants` (reference)
+- **Logic**:
+  - `measurements_long`: Unpivoted measurements (1 row per station/datetime/pollutant)
+  - `measurements_with_status`: Long-format measurements joined 1:1 with instrument status
+  - `measurements_clean`: Cleaned data with temporal features and air quality classification
+- **Presentation**: `dashboard_wide` — pivoted back to wide format for Streamlit
+
+### Python Package (`src/`)
+
+- `src/data/loader.py`: Load data from DuckDB into pandas
+- `src/forecasting/`: XGBoost direct prediction pipeline
+- `src/anomaly/`: Isolation Forest anomaly detection
+- `src/utils/constants.py`: Item codes, targets, DB path
+
+### Key Tables
+
+| Table | Format | Use |
+|-------|--------|-----|
+| `measurements_clean` | Long | All analysis and ML tasks |
+| `measurements_with_status` | Long | Data exploration with status |
+| `dashboard_wide` | Wide | Streamlit dashboard |
 
 ### Data Schema
-- **Stations**: 25 monitoring stations in South Korea (codes 204-228)
-- **Time Range**: 2021-2023 with hourly measurements
-- **Pollutants**: SO2, NO2, O3, CO, PM10, PM2.5
-- **Instrument Status Codes**:
-  - 0: Normal
-  - 1: Need for calibration
-  - 2: Abnormal
-  - 4: Power cut off
-  - 8: Under repair
-  - 9: Abnormal data
+- **Stations**: 25 (codes 204-228)
+- **Pollutants**: SO2 (0), NO2 (2), CO (4), O3 (5), PM10 (7), PM2.5 (8)
+- **Status**: 0=Normal, 1=Calibration, 2=Abnormal, 4=Power cut, 8=Under repair, 9=Abnormal data
+- **Missing values**: -1 in raw data → NULL in `clean_value`
 
-## Common Development Tasks
+## Common Commands
 
-### DBT Operations
 ```bash
-# Navigate to DBT project
-cd dbt_pollution
-
-# Run all models
-dbt run
-
-# Run specific model
-dbt run --select lnd_measurements
-
-# Test data quality
-dbt test
-
-# Generate documentation
-dbt docs generate
-
-# Build everything (run + test)
-dbt build
-
-# Run for production target
-dbt run --target prod
+cd dbt_pollution && dbt build      # Run + test all models
+source venv/bin/activate           # Activate Python env
+pip install -r requirements.txt    # Install dependencies
 ```
 
-### Data Analysis
-```bash
-# Activate virtual environment
-source venv/bin/activate
+## Project Status
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Jupyter for analysis
-jupyter notebook dbt_pollution/analysis/
-```
-
-### Working with DuckDB
-- Development database: `dbt_pollution/dev.duckdb`
-- Production database: `dbt_pollution/prod.duckdb`
-- Access via Python: `duckdb.connect('dbt_pollution/dev.duckdb')`
-
-## Data Quality Considerations
-
-**Important**: The primary analysis table `measurements_with_status` has data quality issues to address:
-
-- **Missing Values**: Pollution measurements contain -1 values (representing null/missing data)
-- **Missing Instrument Status**: Some datetime/station combinations lack instrument_status information
-- **Data Completeness**: `lnd_measurements` has more records than `lnd_instrument_data`
-
-**Recommendation**: Use `measurements_with_status` as the single source of truth, applying appropriate data cleaning for -1 values and missing status codes.
-
-## Key Project Tasks
-
-The project addresses three main analytical challenges:
-
-1. **Exploratory Data Analysis**: Answer specific questions about pollution patterns using clean data
-2. **Forecasting Model**: Predict hourly pollutant concentrations for specified periods  
-3. **Anomaly Detection**: Identify instrument failures and data quality issues
-
-**Primary Analysis Table**: Use `measurements_with_status` for all tasks - it combines measurement values with instrument quality indicators.
+- **Task 1** (EDA): Complete — answers in `notebooks/01_eda_answers.ipynb`
+- **Task 2** (Forecasting): Complete — XGBoost direct prediction, results in `outputs/forecast_predictions.csv`
+- **Task 3** (Anomaly Detection): Complete — Isolation Forest, results in `outputs/anomaly_predictions.csv`
 
 ## Dependencies
 
-- **Python**: pandas, numpy, matplotlib, duckdb, folium
-- **DBT**: dbt-duckdb for DuckDB adapter
-- **Database**: DuckDB for local analytics database
+- **Python**: pandas, numpy, matplotlib, duckdb, scikit-learn, xgboost
+- **DBT**: dbt-duckdb
+- **Dashboard**: streamlit, plotly, folium
