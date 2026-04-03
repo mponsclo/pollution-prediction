@@ -47,9 +47,9 @@ def load_data():
     
     conn = duckdb.connect(db_path)
     
-    # Load the complete dataset (including corrupted data)
+    # Load the complete dataset from the wide-format presentation model
     query = """
-    SELECT 
+    SELECT
         measurement_datetime,
         station_code,
         latitude,
@@ -61,7 +61,7 @@ def load_data():
         pm10_value,
         pm2_5_value,
         instrument_status
-    FROM measurements_with_status
+    FROM dashboard_wide
     ORDER BY measurement_datetime, station_code
     """
     

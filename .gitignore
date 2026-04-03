@@ -4,4 +4,4 @@ dbt_packages/
 logs/
 seeds/
 venv/
-*.duckdb
+*.duckdb__pycache__/
