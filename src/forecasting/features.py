@@ -262,3 +262,150 @@ def build_prediction_features(
 def get_feature_columns(df: pd.DataFrame) -> list[str]:
     """Return all feature column names from a feature DataFrame."""
     return list(df.columns)
+
+
+# ---------------------------------------------------------------------------
+# Cross-station spatial features
+# ---------------------------------------------------------------------------
+
+def compute_spatial_features(
+    station_code: int,
+    item_code: int,
+    train_index: pd.DatetimeIndex,
+    db_path: str | None = None,
+    k_neighbors: int = 5,
+) -> tuple[pd.DataFrame, dict]:
+    """Compute IDW-weighted spatial features from neighboring stations.
+
+    Returns (feature_df, spatial_context) for use on future timestamps.
+    """
+    import duckdb
+    from src.utils.constants import DB_PATH
+
+    path = db_path or DB_PATH
+    con = duckdb.connect(path, read_only=True)
+
+    # Get all stations with coordinates
+    stations = con.sql("""
+        SELECT DISTINCT station_code, latitude, longitude
+        FROM measurements_clean
+        ORDER BY station_code
+    """).df()
+
+    # Get target station coords
+    target_row = stations[stations["station_code"] == station_code].iloc[0]
+    target_lat, target_lon = target_row["latitude"], target_row["longitude"]
+
+    # Compute distances, find k nearest
+    other = stations[stations["station_code"] != station_code].copy()
+    other["dist"] = np.sqrt(
+        (other["latitude"] - target_lat) ** 2 +
+        (other["longitude"] - target_lon) ** 2
+    )
+    neighbors = other.nsmallest(k_neighbors, "dist")
+    neighbor_codes = neighbors["station_code"].tolist()
+    dists = neighbors["dist"].values
+    idw_weights = (1.0 / np.maximum(dists, 1e-6) ** 2)
+    idw_weights /= idw_weights.sum()
+
+    # Load neighbor series for the same pollutant
+    placeholders = ",".join(str(c) for c in neighbor_codes)
+    neighbor_data = con.sql(f"""
+        SELECT measurement_datetime, station_code, clean_value
+        FROM measurements_clean
+        WHERE item_code = {item_code}
+          AND station_code IN ({placeholders})
+          AND instrument_status = 0
+          AND clean_value IS NOT NULL
+        ORDER BY measurement_datetime
+    """).df()
+    con.close()
+
+    neighbor_data["measurement_datetime"] = pd.to_datetime(neighbor_data["measurement_datetime"])
+
+    # Pivot: rows=timestamps, cols=stations
+    pivot = neighbor_data.pivot_table(
+        index="measurement_datetime",
+        columns="station_code",
+        values="clean_value",
+    )
+    pivot = pivot.reindex(train_index).ffill().bfill()
+
+    # Compute spatial features
+    df = pd.DataFrame(index=train_index)
+
+    # IDW-weighted mean of neighbors
+    for i, (nc, w) in enumerate(zip(neighbor_codes, idw_weights)):
+        if nc in pivot.columns:
+            df[f"_n{i}"] = pivot[nc].values * w
+    neighbor_cols = [c for c in df.columns if c.startswith("_n")]
+    df["spatial_idw_mean"] = df[neighbor_cols].sum(axis=1)
+    df.drop(columns=neighbor_cols, inplace=True)
+
+    # Spatial std across neighbors
+    if len(pivot.columns) > 1:
+        df["spatial_std"] = pivot.std(axis=1).values
+
+    # Spatial context for prediction
+    spatial_ctx = {
+        "neighbor_codes": neighbor_codes,
+        "idw_weights": idw_weights,
+        "item_code": item_code,
+    }
+
+    return df, spatial_ctx
+
+
+def compute_spatial_features_for_prediction(
+    prediction_index: pd.DatetimeIndex,
+    spatial_ctx: dict,
+    db_path: str | None = None,
+) -> pd.DataFrame:
+    """Compute spatial features for future timestamps from latest neighbor data."""
+    import duckdb
+    from src.utils.constants import DB_PATH
+
+    path = db_path or DB_PATH
+    con = duckdb.connect(path, read_only=True)
+
+    neighbor_codes = spatial_ctx["neighbor_codes"]
+    idw_weights = spatial_ctx["idw_weights"]
+    item_code = spatial_ctx["item_code"]
+
+    placeholders = ",".join(str(c) for c in neighbor_codes)
+    neighbor_data = con.sql(f"""
+        SELECT measurement_datetime, station_code, clean_value
+        FROM measurements_clean
+        WHERE item_code = {item_code}
+          AND station_code IN ({placeholders})
+          AND instrument_status = 0
+          AND clean_value IS NOT NULL
+        ORDER BY measurement_datetime
+    """).df()
+    con.close()
+
+    neighbor_data["measurement_datetime"] = pd.to_datetime(neighbor_data["measurement_datetime"])
+    pivot = neighbor_data.pivot_table(
+        index="measurement_datetime", columns="station_code", values="clean_value"
+    )
+
+    # For future timestamps, use last known values per neighbor (grouped by hour)
+    df = pd.DataFrame(index=prediction_index)
+
+    # Compute per-hour means from neighbor history for lookup
+    pivot_hourly = pivot.groupby(pivot.index.hour).mean()
+
+    weighted_vals = np.zeros(len(prediction_index))
+    for nc, w in zip(neighbor_codes, idw_weights):
+        if nc in pivot_hourly.columns:
+            hourly_lookup = pivot_hourly[nc].to_dict()
+            vals = pd.Series(prediction_index.hour, index=prediction_index).map(hourly_lookup).fillna(0)
+            weighted_vals += vals.values * w
+
+    df["spatial_idw_mean"] = weighted_vals
+
+    if len(pivot.columns) > 1:
+        hourly_std = pivot.groupby(pivot.index.hour).std().mean(axis=1)
+        df["spatial_std"] = pd.Series(prediction_index.hour, index=prediction_index).map(hourly_std.to_dict()).fillna(0)
+
+    return df

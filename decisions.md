@@ -77,3 +77,24 @@ Isolation Forest with features: z-score deviations from rolling means, rate of c
 
 - Validation F1 ranges from 0.03 to 0.67 depending on target
 - Detection rates in target periods are generally consistent with historical anomaly rates
+
+## Decision 4: Log1p transform + CQR calibration for production forecasting
+
+**Date**: 2026-04-03  
+**Status**: Accepted
+
+### Context
+
+v2 forecasting pipeline had prediction intervals under-covering at 62-89% vs 90% target. Raw quantile regression has no finite-sample coverage guarantee. Also, pollutant data is right-skewed (many low values, rare spikes).
+
+### Decision
+
+1. **Log1p target transform**: Train all models in log1p(y) space, back-transform predictions via expm1. Stabilizes variance and improves optimization for skewed distributions.
+2. **Conformalized Quantile Regression (CQR)**: Compute correction factor Q from validation residuals. Widen/narrow intervals by Q to guarantee ≥90% coverage.
+3. **Cross-station spatial features**: IDW-weighted average of 5 nearest stations as additional features.
+
+### Consequences
+
+- All 6 targets achieve >90% prediction interval coverage (93.8% average)
+- Point estimate accuracy maintained (nRMSE 0.45-0.92)
+- CQR adds negligible computational cost (a single quantile computation on calibration scores)

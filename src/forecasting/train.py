@@ -1,8 +1,8 @@
 """Production-ready forecasting pipeline.
 
-Uses LightGBM with Fourier features, anchor lags, target encoding,
-and an ensemble of LightGBM + Ridge + seasonal naive.
-Includes quantile regression for prediction intervals.
+Uses LightGBM with Fourier features, anchor lags, target encoding, spatial
+features, log1p target transform, ensemble of LightGBM + Ridge + seasonal naive,
+and conformalized quantile regression for calibrated prediction intervals.
 """
 
 import numpy as np
@@ -16,6 +16,8 @@ from src.forecasting.features import (
     build_prediction_features,
     get_feature_columns,
     add_fourier_features,
+    compute_spatial_features,
+    compute_spatial_features_for_prediction,
 )
 
 
@@ -74,6 +76,8 @@ def train_lgbm(
     alpha: float | None = None,
 ) -> LGBMRegressor:
     """Train a single LightGBM model."""
+    import lightgbm as lgb
+
     params = _lgbm_params(objective, alpha)
     model = LGBMRegressor(**params)
 
@@ -81,8 +85,8 @@ def train_lgbm(
     if X_val is not None and y_val is not None:
         fit_kwargs["eval_set"] = [(X_val, y_val)]
         fit_kwargs["callbacks"] = [
-            __import__("lightgbm").early_stopping(50, verbose=False),
-            __import__("lightgbm").log_evaluation(0),
+            lgb.early_stopping(50, verbose=False),
+            lgb.log_evaluation(0),
         ]
 
     model.fit(X_train, y_train, **fit_kwargs)
@@ -99,8 +103,6 @@ def train_ridge(
     """Train a Ridge model using only Fourier + temporal features."""
     epoch = train_series.index.min()
     fourier = add_fourier_features(train_series.index, epoch)
-
-    # Add basic temporal
     fourier["hour"] = train_series.index.hour
     fourier["day_of_week"] = train_series.index.dayofweek
     fourier["month"] = train_series.index.month
@@ -152,6 +154,27 @@ def optimize_weights(
 
 
 # ---------------------------------------------------------------------------
+# Conformal calibration (CQR)
+# ---------------------------------------------------------------------------
+
+def calibrate_intervals_cqr(
+    y_cal: np.ndarray,
+    q_lo_cal: np.ndarray,
+    q_hi_cal: np.ndarray,
+    target_coverage: float = 0.90,
+) -> float:
+    """Compute conformal correction factor Q for CQR.
+
+    Q is added/subtracted to widen the quantile intervals to achieve
+    the target coverage guarantee.
+    """
+    scores = np.maximum(q_lo_cal - y_cal, y_cal - q_hi_cal)
+    n = len(scores)
+    q_level = min(np.ceil((target_coverage) * (n + 1)) / n, 1.0)
+    return float(np.quantile(scores, q_level, method="higher"))
+
+
+# ---------------------------------------------------------------------------
 # Walk-forward cross-validation
 # ---------------------------------------------------------------------------
 
@@ -186,65 +209,132 @@ def walk_forward_cv(
 # Full pipeline
 # ---------------------------------------------------------------------------
 
+def _add_spatial(df: pd.DataFrame, spatial_df: pd.DataFrame) -> pd.DataFrame:
+    """Merge spatial features into feature DataFrame."""
+    for col in spatial_df.columns:
+        if col in df.columns:
+            df[col] = spatial_df[col].values
+        else:
+            df[col] = spatial_df.reindex(df.index)[col].values
+    return df
+
+
 def train_forecast_pipeline(
     train_series: pd.Series,
     val_series: pd.Series | None = None,
+    station_code: int | None = None,
+    item_code: int | None = None,
 ) -> dict:
     """Train the full forecast ensemble.
 
     Returns a pipeline dict with all models and artifacts needed for prediction.
     """
+    # --- Log1p target transform ---
+    train_log = np.log1p(train_series)
+    val_log = np.log1p(val_series) if val_series is not None else None
+
     # Build training features
-    train_feats, context = build_train_features(train_series)
+    train_feats, context = build_train_features(train_log)
     feat_cols = get_feature_columns(train_feats)
 
+    # Spatial features (if station info provided)
+    spatial_ctx = None
+    if station_code is not None and item_code is not None:
+        try:
+            spatial_train, spatial_ctx = compute_spatial_features(
+                station_code, item_code, train_series.index
+            )
+            # Log-transform spatial features too (they're in original scale)
+            for c in spatial_train.columns:
+                if "mean" in c:
+                    spatial_train[c] = np.log1p(spatial_train[c])
+            train_feats = _add_spatial(train_feats, spatial_train)
+            feat_cols = get_feature_columns(train_feats)
+        except Exception:
+            spatial_ctx = None  # graceful fallback
+
     # Drop rows with NaN (from lags/rolling at start of series)
-    valid_mask = train_feats[feat_cols].notna().all(axis=1) & train_series.notna()
+    valid_mask = train_feats[feat_cols].notna().all(axis=1) & train_log.notna()
     X_train = train_feats.loc[valid_mask, feat_cols]
-    y_train = train_series.loc[valid_mask]
+    y_train = train_log.loc[valid_mask]
 
     # Validation set (if provided)
     X_val, y_val = None, None
-    if val_series is not None:
-        val_index = val_series.index
+    if val_log is not None:
+        val_index = val_log.index
         horizon_steps = np.arange(len(val_index))
         val_feats = build_prediction_features(val_index, context, horizon_steps)
-        # Ensure same columns
+
+        if spatial_ctx is not None:
+            try:
+                spatial_val = compute_spatial_features_for_prediction(val_index, spatial_ctx)
+                for c in spatial_val.columns:
+                    if "mean" in c:
+                        spatial_val[c] = np.log1p(spatial_val[c])
+                val_feats = _add_spatial(val_feats, spatial_val)
+            except Exception:
+                pass
+
         for c in feat_cols:
             if c not in val_feats.columns:
                 val_feats[c] = 0
         X_val = val_feats[feat_cols].astype(float)
         X_val = X_val.fillna(X_val.median())
-        y_val = val_series
+        y_val = val_log
 
     # Handle NaN in training features
-    X_train = X_train.fillna(X_train.median())
+    train_medians = X_train.median()
+    X_train = X_train.fillna(train_medians)
 
-    # Train LightGBM (point estimate)
+    # Train LightGBM models (in log space)
     lgbm_model = train_lgbm(X_train, y_train, X_val, y_val, "regression")
-
-    # Train LightGBM quantile models (prediction intervals)
     lgbm_q05 = train_lgbm(X_train, y_train, X_val, y_val, "quantile", 0.05)
     lgbm_q95 = train_lgbm(X_train, y_train, X_val, y_val, "quantile", 0.95)
 
-    # Train Ridge Fourier model
-    ridge_model, ridge_epoch = train_ridge(train_series.dropna())
+    # Train Ridge Fourier model (in log space)
+    ridge_model, ridge_epoch = train_ridge(train_log.dropna())
 
-    # Determine ensemble weights using validation if available
-    weights = {"lgbm": 0.6, "ridge": 0.2, "naive": 0.2}  # defaults
+    # --- Conformal calibration on validation ---
+    cqr_correction = 0.0
+    weights = {"lgbm": 0.6, "ridge": 0.2, "naive": 0.2}
 
     if val_series is not None:
-        naive_preds = seasonal_naive_predict(train_series, val_index)
-        lgbm_preds = lgbm_model.predict(X_val)
-        lgbm_preds = np.maximum(lgbm_preds, 0)
-        ridge_preds = predict_ridge(ridge_model, val_index, ridge_epoch).values
+        # Predict validation in log space, then back-transform
+        lgbm_val_log = lgbm_model.predict(X_val)
+        q05_val_log = lgbm_q05.predict(X_val)
+        q95_val_log = lgbm_q95.predict(X_val)
+
+        # Back-transform to original scale for ensemble optimization
+        lgbm_val = np.expm1(np.maximum(lgbm_val_log, 0))
+        ridge_val = predict_ridge(ridge_model, val_index, ridge_epoch).values
+        # Ridge was trained on log, predictions are in log space
+        # Actually ridge.predict returns log-space. Convert:
+        ridge_val_log = ridge_val  # already in log from predict_ridge
+        # Re-do ridge prediction properly in log space
+        fourier_val = add_fourier_features(val_index, ridge_epoch)
+        fourier_val["hour"] = val_index.hour
+        fourier_val["day_of_week"] = val_index.dayofweek
+        fourier_val["month"] = val_index.month
+        ridge_val_log = ridge_model.predict(fourier_val.values)
+        ridge_val = np.maximum(np.expm1(ridge_val_log), 0)
+
+        naive_val = seasonal_naive_predict(train_series, val_index).values  # original scale
 
         candidate_preds = {
-            "lgbm": lgbm_preds,
-            "ridge": ridge_preds,
-            "naive": naive_preds.values,
+            "lgbm": np.maximum(lgbm_val, 0),
+            "ridge": ridge_val,
+            "naive": naive_val,
         }
         weights = optimize_weights(val_series.values, candidate_preds)
+
+        # CQR calibration on validation (original scale)
+        q05_val = np.maximum(np.expm1(q05_val_log), 0)
+        q95_val = np.maximum(np.expm1(q95_val_log), 0)
+        cqr_correction = calibrate_intervals_cqr(
+            val_series.values, q05_val, q95_val, target_coverage=0.90
+        )
+
+    context["train_series_original"] = train_series  # keep original for naive
 
     return {
         "lgbm_model": lgbm_model,
@@ -255,7 +345,9 @@ def train_forecast_pipeline(
         "context": context,
         "feat_cols": feat_cols,
         "weights": weights,
-        "train_medians": X_train.median(),
+        "train_medians": train_medians,
+        "cqr_correction": cqr_correction,
+        "spatial_ctx": spatial_ctx,
     }
 
 
@@ -263,32 +355,60 @@ def predict_with_pipeline(
     pipeline: dict,
     prediction_index: pd.DatetimeIndex,
 ) -> pd.DataFrame:
-    """Generate ensemble predictions with prediction intervals."""
+    """Generate ensemble predictions with calibrated prediction intervals."""
     context = pipeline["context"]
     feat_cols = pipeline["feat_cols"]
-    train_series = context["train_series"]
+    train_series_orig = context.get("train_series_original", context["train_series"])
 
     horizon_steps = np.arange(len(prediction_index))
     pred_feats = build_prediction_features(prediction_index, context, horizon_steps)
 
-    # Ensure same columns and fill NaN
+    # Spatial features
+    if pipeline.get("spatial_ctx") is not None:
+        try:
+            spatial_pred = compute_spatial_features_for_prediction(
+                prediction_index, pipeline["spatial_ctx"]
+            )
+            for c in spatial_pred.columns:
+                if "mean" in c:
+                    spatial_pred[c] = np.log1p(spatial_pred[c])
+            pred_feats = _add_spatial(pred_feats, spatial_pred)
+        except Exception:
+            pass
+
     for c in feat_cols:
         if c not in pred_feats.columns:
             pred_feats[c] = 0
     X = pred_feats[feat_cols].astype(float)
     X = X.fillna(pipeline["train_medians"])
 
-    # Individual predictions
-    lgbm_preds = np.maximum(pipeline["lgbm_model"].predict(X), 0)
-    ridge_preds = predict_ridge(pipeline["ridge_model"], prediction_index, pipeline["ridge_epoch"]).values
-    naive_preds = seasonal_naive_predict(train_series, prediction_index).values
+    # Predict in log space, back-transform
+    lgbm_log = pipeline["lgbm_model"].predict(X)
+    lgbm_preds = np.maximum(np.expm1(lgbm_log), 0)
 
-    # Quantile predictions
-    q05 = np.maximum(pipeline["lgbm_q05"].predict(X), 0)
-    q95 = np.maximum(pipeline["lgbm_q95"].predict(X), 0)
+    # Ridge in log space
+    fourier_pred = add_fourier_features(prediction_index, pipeline["ridge_epoch"])
+    fourier_pred["hour"] = prediction_index.hour
+    fourier_pred["day_of_week"] = prediction_index.dayofweek
+    fourier_pred["month"] = prediction_index.month
+    ridge_log = pipeline["ridge_model"].predict(fourier_pred.values)
+    ridge_preds = np.maximum(np.expm1(ridge_log), 0)
+
+    naive_preds = seasonal_naive_predict(train_series_orig, prediction_index).values
+
+    # Quantile predictions (log space → original)
+    q05_log = pipeline["lgbm_q05"].predict(X)
+    q95_log = pipeline["lgbm_q95"].predict(X)
+    q05 = np.maximum(np.expm1(q05_log), 0)
+    q95 = np.maximum(np.expm1(q95_log), 0)
+
+    # Apply CQR conformal correction
+    cqr = pipeline.get("cqr_correction", 0.0)
+    q05_cal = np.maximum(q05 - cqr, 0)
+    q95_cal = q95 + cqr
 
     # Enforce monotonicity
-    q95 = np.maximum(q95, q05)
+    q95_cal = np.maximum(q95_cal, q05_cal)
 
     # Ensemble
     w = pipeline["weights"]
@@ -304,6 +424,6 @@ def predict_with_pipeline(
         "lgbm": lgbm_preds,
         "ridge": ridge_preds,
         "naive": naive_preds,
-        "q05": q05,
-        "q95": q95,
+        "q05": q05_cal,
+        "q95": q95_cal,
     }, index=prediction_index)

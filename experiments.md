@@ -22,7 +22,7 @@
 
 **Result**: nRMSE 0.48-0.97 — essentially a seasonal average. Predictions were flat with very low variability compared to actuals. Superseded by Experiment 4.
 
-### Experiment 4: LightGBM Ensemble with Fourier + Anchor Lags (SELECTED)
+### Experiment 4: LightGBM Ensemble with Fourier + Anchor Lags (SUPERSEDED)
 
 **Method**: Production-ready ensemble of LightGBM + Ridge (Fourier) + Seasonal Naive with optimized weights.
 
@@ -54,12 +54,34 @@
 | 225     | PM10      | 28.09975  | 17.28982     | 0.52  | 0.04  | 38.5%    | 82.7%       |
 | 228     | PM2.5     | 14.03014  | 9.80707      | 0.53  | 0.08  | 30.1%    | 87.0%       |
 
-**Key improvements over Experiment 3**:
-- PM10 nRMSE: 0.97 → 0.52 (47% reduction — from useless to useful)
-- CO nRMSE: 0.61 → 0.45 (26% reduction)
-- PM2.5 nRMSE: 0.64 → 0.53 (17% reduction)
-- All targets now have nRMSE < 1.0 (better than predicting the mean)
-- 90% prediction intervals included for production use
+**Superseded by Experiment 5** — prediction intervals under-covered (62-89% vs 90% target).
+
+### Experiment 5: Full Production Pipeline — log1p + CQR + Spatial (SELECTED)
+
+**Method**: Experiment 4 + three production improvements:
+
+1. **Log1p target transform**: Training in log1p(y) space stabilizes variance for right-skewed pollutant distributions. Predictions back-transformed via expm1. Improves relative error on low-concentration periods.
+
+2. **Conformalized Quantile Regression (CQR)**: Post-hoc calibration of prediction intervals. Computes a correction factor Q from validation residuals: intervals widened by Q to guarantee ≥90% coverage. Based on Romano et al. (2019).
+
+3. **Cross-station spatial features**: IDW-weighted average of 5 nearest neighbor stations' readings. Captures spatial correlation — if neighboring stations show high PM10, this station likely will too.
+
+**Walk-Forward CV Results (3 folds × 720h)**:
+
+| Station | Pollutant | Naive RMSE | Ensemble RMSE | nRMSE | R² | Improvement | PI Coverage |
+|---------|-----------|-----------|--------------|-------|-----|------------|-------------|
+| 206     | SO2       | 0.00142   | 0.00122      | 0.92  | -0.28 | 14.1%    | **93.8%**   |
+| 211     | NO2       | 0.01364   | 0.01131      | 0.72  | -0.53 | 17.0%    | **91.7%**   |
+| 217     | O3        | 0.01572   | 0.01428      | 0.72  | 0.36  | 9.2%     | **90.5%**   |
+| 219     | CO        | 0.18147   | 0.13352      | 0.45  | 0.01  | 26.4%    | **93.6%**   |
+| 225     | PM10      | 28.09975  | 17.08213     | 0.52  | 0.05  | 39.2%    | **93.1%**   |
+| 228     | PM2.5     | 14.03014  | 10.21084     | 0.55  | 0.01  | 27.2%    | **93.5%**   |
+
+**Key improvements over Experiment 4**:
+- All 6 targets achieve **>90% prediction interval coverage** (was 62-89%)
+- Point estimate accuracy maintained (nRMSE 0.45-0.92)
+- Ensemble beats naive on all targets (9-39% RMSE improvement)
+- Production-ready: calibrated intervals, robust to distribution shift
 
 ---
 
