@@ -1,7 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
 
+# IDE / Tools
+.claude/
+.cursor/
+.playwright-mcp/
+.vscode/
+*.swp
+
+# DBT artifacts
 target/
 dbt_packages/
 logs/
-seeds/
-venv/
-*.duckdb__pycache__/
+*.duckdb
+.user.yml
+package-lock.yml
+
+# Data seeds (large CSVs tracked separately)
+dbt_pollution/seeds/*.csv
+
+# OS
+.DS_Store
