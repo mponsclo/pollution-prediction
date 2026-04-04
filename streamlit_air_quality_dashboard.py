@@ -196,19 +196,29 @@ def main():
         return
     
     # Main dashboard layout
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Time Series Analysis", "🗺️ Geographic Analysis", "📈 Data Quality Overview", "📋 Statistical Summary"])
-    
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📊 Time Series Analysis", "🗺️ Geographic Analysis",
+        "📈 Data Quality Overview", "📋 Statistical Summary",
+        "🔮 Forecasts", "⚠️ Anomaly Detection",
+    ])
+
     with tab1:
         show_time_series_analysis(filtered_df, selected_pollutant, pollutant_info, status_colors)
-    
+
     with tab2:
         show_geographic_analysis(filtered_df, selected_pollutant, pollutant_info, status_colors)
-    
+
     with tab3:
         show_data_quality_overview(filtered_df, df, pollutant_info)
-    
+
     with tab4:
         show_statistical_summary(filtered_df, selected_pollutant, pollutant_info)
+
+    with tab5:
+        show_forecasts(pollutant_info)
+
+    with tab6:
+        show_anomaly_detection()
 
 def show_time_series_analysis(filtered_df, selected_pollutant, pollutant_info, status_colors):
     st.header("📊 Time Series Analysis")
@@ -605,12 +615,206 @@ def show_statistical_summary(filtered_df, selected_pollutant, pollutant_info):
     status_stats.columns = ['Count', 'Mean', 'Std Dev', 'Min', 'Max']
     st.dataframe(status_stats)
 
+@st.cache_data
+def load_forecast_predictions():
+    """Load pre-computed forecast predictions."""
+    path = 'outputs/forecast_predictions.csv'
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    df['measurement_datetime'] = pd.to_datetime(df['measurement_datetime'])
+    return df
+
+
+@st.cache_data
+def load_anomaly_predictions():
+    """Load pre-computed anomaly predictions."""
+    path = 'outputs/anomaly_predictions.csv'
+    if not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    df['measurement_datetime'] = pd.to_datetime(df['measurement_datetime'])
+    return df
+
+
+def show_forecasts(pollutant_info):
+    st.header("🔮 Hourly Pollutant Forecasts")
+
+    forecast_df = load_forecast_predictions()
+    if forecast_df is None:
+        st.warning("No forecast predictions found. Run `make predict` first.")
+        return
+
+    # Selectors
+    col1, col2 = st.columns(2)
+    with col1:
+        stations = sorted(forecast_df['station_code'].unique())
+        selected_station = st.selectbox("Station", stations, key="forecast_station")
+    with col2:
+        pollutants = forecast_df[forecast_df['station_code'] == selected_station]['item_name'].unique()
+        selected_pollutant_name = st.selectbox("Pollutant", pollutants, key="forecast_pollutant")
+
+    # Filter
+    mask = (forecast_df['station_code'] == selected_station) & \
+           (forecast_df['item_name'] == selected_pollutant_name)
+    data = forecast_df[mask].sort_values('measurement_datetime')
+
+    if data.empty:
+        st.info("No predictions for this combination.")
+        return
+
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Prediction Hours", len(data))
+    col2.metric("Mean Value", f"{data['predicted_value'].mean():.5f}")
+    col3.metric("Min Value", f"{data['predicted_value'].min():.5f}")
+    col4.metric("Max Value", f"{data['predicted_value'].max():.5f}")
+
+    # Time series plot with prediction intervals
+    fig = go.Figure()
+
+    # 90% prediction interval (shaded band)
+    fig.add_trace(go.Scatter(
+        x=data['measurement_datetime'],
+        y=data['predicted_upper_90'],
+        mode='lines',
+        line=dict(width=0),
+        showlegend=False,
+        name='Upper 90%',
+    ))
+    fig.add_trace(go.Scatter(
+        x=data['measurement_datetime'],
+        y=data['predicted_lower_90'],
+        mode='lines',
+        line=dict(width=0),
+        fill='tonexty',
+        fillcolor='rgba(31, 119, 180, 0.2)',
+        name='90% Prediction Interval',
+    ))
+
+    # Point estimate
+    fig.add_trace(go.Scatter(
+        x=data['measurement_datetime'],
+        y=data['predicted_value'],
+        mode='lines',
+        line=dict(color='#1f77b4', width=1.5),
+        name='Ensemble Prediction',
+    ))
+
+    fig.update_layout(
+        title=f"Forecast: Station {selected_station} / {selected_pollutant_name.upper()}",
+        xaxis_title="Date",
+        yaxis_title="Concentration",
+        hovermode='x unified',
+        height=450,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Interval width analysis
+    data = data.copy()
+    data['interval_width'] = data['predicted_upper_90'] - data['predicted_lower_90']
+    st.metric("Avg 90% Interval Width", f"{data['interval_width'].mean():.5f}")
+
+    # Raw data table
+    with st.expander("View raw predictions"):
+        st.dataframe(
+            data[['measurement_datetime', 'predicted_value', 'predicted_lower_90', 'predicted_upper_90']],
+            use_container_width=True,
+        )
+
+
+def show_anomaly_detection():
+    st.header("⚠️ Instrument Anomaly Detection")
+
+    anomaly_df = load_anomaly_predictions()
+    if anomaly_df is None:
+        st.warning("No anomaly predictions found. Run `make predict` first.")
+        return
+
+    # Selectors
+    col1, col2 = st.columns(2)
+    with col1:
+        stations = sorted(anomaly_df['station_code'].unique())
+        selected_station = st.selectbox("Station", stations, key="anomaly_station")
+    with col2:
+        pollutants = anomaly_df[anomaly_df['station_code'] == selected_station]['item_name'].unique()
+        selected_pollutant_name = st.selectbox("Pollutant", pollutants, key="anomaly_pollutant")
+
+    mask = (anomaly_df['station_code'] == selected_station) & \
+           (anomaly_df['item_name'] == selected_pollutant_name)
+    data = anomaly_df[mask].sort_values('measurement_datetime')
+
+    if data.empty:
+        st.info("No predictions for this combination.")
+        return
+
+    n_anomalies = data['is_anomaly'].sum()
+    anomaly_rate = n_anomalies / len(data) * 100
+
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Hours", len(data))
+    col2.metric("Anomalies Detected", int(n_anomalies))
+    col3.metric("Anomaly Rate", f"{anomaly_rate:.1f}%")
+
+    # Anomaly score timeline
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=data['measurement_datetime'],
+        y=data['anomaly_score'],
+        mode='lines',
+        line=dict(color='#636EFA', width=1),
+        name='Anomaly Score',
+    ))
+
+    # Highlight anomaly points
+    anomalies = data[data['is_anomaly'] == 1]
+    if len(anomalies) > 0:
+        fig.add_trace(go.Scatter(
+            x=anomalies['measurement_datetime'],
+            y=anomalies['anomaly_score'],
+            mode='markers',
+            marker=dict(color='red', size=6, symbol='circle'),
+            name='Detected Anomaly',
+        ))
+
+    fig.update_layout(
+        title=f"Anomaly Scores: Station {selected_station} / {selected_pollutant_name.upper()}",
+        xaxis_title="Date",
+        yaxis_title="Anomaly Probability",
+        hovermode='x unified',
+        height=400,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Anomaly probability heatmap (hour × day)
+    if len(data) > 24:
+        data = data.copy()
+        data['hour'] = data['measurement_datetime'].dt.hour
+        data['date'] = data['measurement_datetime'].dt.date
+
+        pivot = data.pivot_table(
+            index='hour', columns='date', values='anomaly_score', aggfunc='mean'
+        )
+
+        fig2 = px.imshow(
+            pivot,
+            labels=dict(x="Date", y="Hour of Day", color="Anomaly Score"),
+            title="Anomaly Score Heatmap (Hour x Day)",
+            color_continuous_scale="RdYlGn_r",
+            aspect="auto",
+        )
+        fig2.update_layout(height=350)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    # Raw data table
+    with st.expander("View raw predictions"):
+        st.dataframe(
+            data[['measurement_datetime', 'is_anomaly', 'anomaly_score']],
+            use_container_width=True,
+        )
+
+
 if __name__ == "__main__":
     main()
-
-# First show the aggregate of the stations. Otherwise if we show all the stations everything is convoluted.
-# Do not use pie charts for the status distribution. Use a bar chart.
-# Don't join the data points for not normal measurements as joining them clutters the visualizations. Just show the data points so they are visual.
-# Use the health threshold from pollutants info
-# Plot different pollutants at the same time to check correlations
-# Show better the seasonality (Take the whole month of December as part of winter, March as spring, and so on.)
