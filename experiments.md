@@ -110,21 +110,54 @@ Hourly weather from Open-Meteo API (temperature, humidity, pressure, wind, preci
 
 **Goal**: Detect instrument anomalies for 6 station/pollutant/period combinations. Target periods have no labels — predictions are the model's best estimate.
 
-### Exp 1: Isolation Forest (SELECTED)
+### Exp 1: Isolation Forest (SUPERSEDED)
 
-Trained on labeled historical data per station/pollutant. Features: z-score deviations from rolling means (6h/12h/24h), rate of change, stuck-sensor detection, temporal context.
+Unsupervised Isolation Forest with 11 features. Ignores available labels entirely.
 
-Contamination parameter set per-target based on historical anomaly rate (0.7-4.5%).
+| Target | Val F1 |
+|--------|--------|
+| 205/SO2 | 0.500 |
+| 209/NO2 | 0.000 |
+| 223/O3 | 0.667 |
+| 224/CO | 0.029 |
+| 226/PM10 | 0.133 |
+| 227/PM2.5 | 0.529 |
+| **Average** | **0.310** |
 
-| Target | Historical Rate | Val F1 | Detected Anomalies |
-|--------|----------------|--------|-------------------|
-| 205/SO2 | 0.7%          | 0.500  | 3/696 (0.4%)      |
-| 209/NO2 | 2.0%          | 0.000  | 362/628 (57.6%)   |
-| 223/O3  | 0.9%          | 0.667  | 7/699 (1.0%)      |
-| 224/CO  | 4.5%          | 0.029  | 10/720 (1.4%)     |
-| 226/PM10 | 2.8%         | 0.133  | 23/716 (3.2%)     |
-| 227/PM2.5 | 3.8%        | 0.529  | 14/708 (2.0%)     |
+**Fundamental flaw**: Using unsupervised method on a supervised problem — instrument_status labels are available but unused.
 
-Station 209/NO2 shows high detection rate (57.6%) — likely genuine distribution shift in the unlabeled target period. Validation F1 varies due to class imbalance and small anomaly counts.
+### Exp 2: Supervised LightGBM Classifier (SELECTED)
+
+**Key insight**: We HAVE labels (instrument_status). Switch from unsupervised Isolation Forest to supervised LightGBM binary classifier.
+
+**Features (~80)**:
+- Rolling stats at 6 windows (3h-168h): mean, std, min, max, range, z-score
+- Lag + diff features at 8 offsets (1h-168h)
+- Instrument failure signatures: flatline detection (6h/12h), stuck sensor count, spike score, at-zero/negative flags
+- Temporal: cyclical hour/dow, month, is_weekend
+- Contextual: deviation from hourly median
+- Isolation Forest anomaly score as bonus feature (XGBOD pattern)
+
+**Model**: LightGBM (n_estimators=800, lr=0.03, num_leaves=63). No `scale_pos_weight` — keeps probabilities calibrated.
+
+**Threshold**: Optimized per-target via precision-recall curve to maximize F1 on validation.
+
+**Post-processing**: Adaptive temporal smoothing — min-run-length filter (3h) only when anomaly rate > 5%, otherwise keep all detections (sparse anomalies are often isolated events).
+
+| Target | Old IF F1 | New LightGBM F1 | Precision | Recall | Improvement |
+|--------|----------|-----------------|-----------|--------|------------|
+| 205/SO2 | 0.500 | **1.000** | 1.000 | 1.000 | +100% |
+| 209/NO2 | 0.000 | 0.000 | 0.000 | 0.000 | Same (3 true anomalies — too few) |
+| 223/O3 | 0.667 | **1.000** | 1.000 | 1.000 | +50% |
+| 224/CO | 0.029 | **0.956** | 0.916 | 1.000 | **+3197%** |
+| 226/PM10 | 0.133 | **0.235** | 0.667 | 0.143 | +77% |
+| 227/PM2.5 | 0.529 | **0.526** | 0.385 | 0.833 | Same |
+| **Average** | **0.310** | **0.620** | — | — | **+100%** |
+
+**Notes**:
+- Station 224/CO: massive improvement (0.029→0.956) because the validation month was 95% anomalous — supervised learning detects this easily, Isolation Forest with 4.5% contamination couldn't
+- Station 209/NO2: 0.000 on both — only 3 true anomalies in validation, too few for any classifier
+- Station 205/SO2 and 223/O3: perfect F1 on validation (4 anomalies each, all caught)
+- Average F1 doubled from 0.31 to 0.62
 
 **Output**: `outputs/anomaly_predictions.csv`
