@@ -11,6 +11,7 @@ venv/
 .playwright-mcp/
 .vscode/
 *.swp
+CLAUDE.md
 
 # DBT artifacts
 target/
