@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.egg-info/
 venv/
+.pytest_cache/
 
 # IDE / Tools
 .claude/
@@ -14,15 +15,18 @@ venv/
 CLAUDE.md
 
 # DBT artifacts
-target/
-dbt_packages/
-logs/
+dbt_pollution/target/
+dbt_pollution/dbt_packages/
+dbt_pollution/logs/
+dbt_pollution/profiles.yml
+dbt_pollution/analysis/
 *.duckdb
 .user.yml
 package-lock.yml
 
-# Data seeds (large CSVs tracked separately)
+# Data (large / regenerable)
 dbt_pollution/seeds/*.csv
+data/weather_cache.csv
 
 # MLflow
 mlruns/
@@ -31,6 +35,9 @@ mlflow.db
 
 # Model artifacts
 outputs/models/
+
+# Generated images (keep only final deliverables)
+outputs/*.png
 
 # OS
 .DS_Store

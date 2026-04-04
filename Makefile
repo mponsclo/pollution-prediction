@@ -12,7 +12,6 @@ help: ## Show this help
 
 install: ## Install all dependencies
 	$(PIP) install -r requirements.txt
-	$(PIP) install -r requirements_streamlit.txt
 
 dbt-build: ## Run DBT pipeline (seed + build + test)
 	cd dbt_pollution && dbt build
