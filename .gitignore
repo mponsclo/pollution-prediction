@@ -24,5 +24,13 @@ package-lock.yml
 # Data seeds (large CSVs tracked separately)
 dbt_pollution/seeds/*.csv
 
+# MLflow
+mlruns/
+mlartifacts/
+mlflow.db
+
+# Model artifacts
+outputs/models/
+
 # OS
 .DS_Store
