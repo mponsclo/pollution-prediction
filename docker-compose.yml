@@ -1,0 +1,41 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./outputs:/app/outputs
+      - ./dbt_pollution/dev.duckdb:/app/dbt_pollution/dev.duckdb
+    restart: unless-stopped
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.21.3
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow.db:/mlflow/mlflow.db
+      - ./mlartifacts:/mlflow/mlartifacts
+    command: >
+      mlflow ui
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/mlartifacts
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit_air_quality_dashboard.py:/app/streamlit_air_quality_dashboard.py
+      - ./outputs:/app/outputs
+      - ./dbt_pollution/dev.duckdb:/app/dbt_pollution/dev.duckdb
+    command: >
+      streamlit run streamlit_air_quality_dashboard.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true
+    depends_on:
+      - api
+    restart: unless-stopped
