@@ -22,7 +22,14 @@ models:
   dbt_pollution:
     landing:
       +materialized: view
+      +schema: landing
     logic:
       +materialized: table
+      +schema: logic
     presentation:
       +materialized: table
+      +schema: presentation
+
+seeds:
+  dbt_pollution:
+    +schema: landing

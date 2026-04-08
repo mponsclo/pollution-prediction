@@ -58,6 +58,18 @@ seeds:
 
   - name: measurement_data
     description: "Wide-format hourly air quality measurements from monitoring stations"
+    config:
+      column_types:
+        measurement_date: STRING
+        station_code: INT64
+        latitude: FLOAT64
+        longitude: FLOAT64
+        SO2: FLOAT64
+        NO2: FLOAT64
+        O3: FLOAT64
+        CO: FLOAT64
+        PM10: FLOAT64
+        PM2_5: FLOAT64
     columns:
       - name: measurement_date
         description: "Hourly timestamp of the measurement"

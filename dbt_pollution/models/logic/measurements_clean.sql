@@ -19,12 +19,12 @@ SELECT
     , COALESCE(m.instrument_status, -1) AS status_filled
 
     -- Temporal features
-    , EXTRACT(YEAR FROM m.measurement_datetime)::INT AS year
-    , EXTRACT(MONTH FROM m.measurement_datetime)::INT AS month
-    , EXTRACT(DAY FROM m.measurement_datetime)::INT AS day
-    , EXTRACT(HOUR FROM m.measurement_datetime)::INT AS hour
-    , EXTRACT(DOW FROM m.measurement_datetime)::INT AS day_of_week
-    , EXTRACT(DOY FROM m.measurement_datetime)::INT AS day_of_year
+    , EXTRACT(YEAR FROM m.measurement_datetime) AS year
+    , EXTRACT(MONTH FROM m.measurement_datetime) AS month
+    , EXTRACT(DAY FROM m.measurement_datetime) AS day
+    , EXTRACT(HOUR FROM m.measurement_datetime) AS hour
+    , EXTRACT(DAYOFWEEK FROM m.measurement_datetime) AS day_of_week
+    , EXTRACT(DAYOFYEAR FROM m.measurement_datetime) AS day_of_year
     , CASE
         WHEN EXTRACT(MONTH FROM m.measurement_datetime) IN (12, 1, 2) THEN 'Winter'
         WHEN EXTRACT(MONTH FROM m.measurement_datetime) IN (3, 4, 5) THEN 'Spring'

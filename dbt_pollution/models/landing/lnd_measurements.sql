@@ -1,18 +1,18 @@
-{{- 
+{{-
   config(
     materialized='view'
   )
 -}}
 
 SELECT
-  measurement_date::DATETIME AS measurement_datetime
-  , station_code::INT AS station_code
+  CAST(measurement_date AS DATETIME) AS measurement_datetime
+  , CAST(station_code AS INT64) AS station_code
   , latitude
   , longitude
-  , SO2::NUMERIC AS so2_value
-  , NO2::NUMERIC AS no2_value
-  , O3::NUMERIC AS o3_value
-  , CO::NUMERIC AS co_value
-  , PM10::NUMERIC AS pm10_value
-  , "PM2.5"::NUMERIC AS pm2_5_value
+  , CAST(SO2 AS NUMERIC) AS so2_value
+  , CAST(NO2 AS NUMERIC) AS no2_value
+  , CAST(O3 AS NUMERIC) AS o3_value
+  , CAST(CO AS NUMERIC) AS co_value
+  , CAST(PM10 AS NUMERIC) AS pm10_value
+  , CAST(PM2_5 AS NUMERIC) AS pm2_5_value
 FROM {{ ref("measurement_data") }}

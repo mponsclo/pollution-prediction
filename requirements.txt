@@ -13,7 +13,7 @@ scipy>=1.10.0
 torch>=2.0.0
 
 # Data pipeline
-dbt-duckdb==1.9.4
+dbt-bigquery>=1.7.0
 
 # Experiment tracking
 mlflow>=2.10.0

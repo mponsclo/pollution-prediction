@@ -92,6 +92,7 @@ models:
           - not_null
           - dbt_expectations.expect_column_values_to_be_in_set:
               value_set: [0, 2, 4, 5, 7, 8]
+              quote_values: false
       - name: average_value
         data_type: "float"
         description: "Average value"
@@ -102,6 +103,7 @@ models:
           - not_null
           - dbt_expectations.expect_column_values_to_be_in_set:
               value_set: [0, 1, 2, 4, 8, 9]
+              quote_values: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
