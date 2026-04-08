@@ -39,5 +39,13 @@ outputs/models/
 # Generated images (keep only final deliverables)
 outputs/*.png
 
+# Terraform
+terraform/.terraform/
+terraform/**/.terraform/
+terraform/**/*.tfstate
+terraform/**/*.tfstate.backup
+terraform/**/*.tfvars
+!terraform/**/*.tfvars.enc
+
 # OS
 .DS_Store

@@ -1,0 +1,15 @@
+{
+	"data": "ENC[AES256_GCM,data:g603Am6XeDwLjZ5HND/DIqKAR+JIFu0VZMlhwkM7TgNXcevFw9erSnOa7wdnH5Ic+3HCbrg+QogAi5w/fqsndEAWHTTtxUrpaPqajQeTmQ2etrFME7gRO0gir7cwuqCsNX7iUkNT34M8Hyke2h4Kj58RBNW/naLqScmTaX2iuPu0bdH6ymmceleClnC0jhXJjjXDf9/f5GdUC8DhgFHdKr6yWIWmZOIc,iv:nGPfP7676xGxNa653UPTu34tzdGMa34is2j/2LCmVLg=,tag:6CTJXjYhtNgW61kIeuytDg==,type:str]",
+	"sops": {
+		"gcp_kms": [
+			{
+				"resource_id": "projects/mpc-pollution-331382/locations/global/keyRings/sops-keyring/cryptoKeys/sops-key",
+				"created_at": "2026-04-07T20:36:50Z",
+				"enc": "CiQArlGpMxneL51W70a6ZqfO5Wh6IatUMqUeCcuXngkqYV6jNnISSQDWERJWb6Az5yebSIyiwXBRsaylnQ9jc4UD0YldMATiliOta0KwQCa09hSsWklaq3VOB4zNX5ohTUNpdgL61W1C8kHAJaFZy7w="
+			}
+		],
+		"lastmodified": "2026-04-07T20:36:51Z",
+		"mac": "ENC[AES256_GCM,data:dR7/hyFEzI7jksurMbJv2XIgvQMk4VxdXSUV4lWRPeo2yHMZTp21e07sD6tC6L3it87t4irt+i6agBcdmd1a3DDdvDhZW/y0ku/FaB8FuisFXh3e+k5fuNZArbpZRypYiwxVEUU7VMxvAdi63sZUvq9I2UYJkQ+s8iJwreFpxDM=,iv:4uuXbxmL3w6jvX0xfpyoW1KZoi5RkAVL7J5SDW1jQv4=,tag:ZWk9RYYlzU7XgHFxftS06w==,type:str]",
+		"version": "3.12.2"
+	}
+}
