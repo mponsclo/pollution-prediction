@@ -2,10 +2,11 @@
 
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![DBT](https://img.shields.io/badge/dbt-DuckDB-orange.svg)](https://docs.getdbt.com/)
+[![DBT](https://img.shields.io/badge/dbt-BigQuery-orange.svg)](https://docs.getdbt.com/)
 [![FastAPI](https://img.shields.io/badge/serving-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
+[![GCP](https://img.shields.io/badge/infra-GCP%20%2F%20Terraform-4285F4.svg)](https://cloud.google.com/)
 
-End-to-end air quality forecasting and instrument anomaly detection for 25 Seoul monitoring stations. The system ingests 3 years of hourly measurements (2021-2023) across 6 pollutants (SO2, NO2, O3, CO, PM10, PM2.5), transforms them through a reproducible DBT/DuckDB pipeline, and serves predictions through a REST API backed by a LightGBM ensemble selected from 9 candidate experiments.
+End-to-end air quality forecasting and instrument anomaly detection for 25 Seoul monitoring stations. The system ingests 3 years of hourly measurements (2021-2023) across 6 pollutants (SO2, NO2, O3, CO, PM10, PM2.5), transforms them through a reproducible DBT/BigQuery pipeline, and serves predictions through a REST API on Cloud Run backed by a LightGBM ensemble selected from 9 candidate experiments. Infrastructure is managed with Terraform, CI/CD with GitHub Actions, and secrets encrypted with SOPS/KMS.
 
 **Headline results:** Forecast nRMSE 0.45-0.92 across all pollutants with calibrated 90% prediction intervals. Anomaly detection F1 doubled from 0.31 to 0.62 versus the Isolation Forest baseline.
 
@@ -13,12 +14,14 @@ End-to-end air quality forecasting and instrument anomaly detection for 25 Seoul
 
 ## Key Features
 
-- **Reproducible data pipeline** -- DBT models on DuckDB transform 3.7M rows from raw CSV seeds through landing, logic, and presentation layers with schema tests at every stage
+- **Reproducible data pipeline** -- DBT models on BigQuery transform 3.7M rows from raw CSV seeds through landing, logic, and presentation layers with schema tests at every stage (54/54 pass)
 - **Production forecasting** -- LightGBM + Ridge + Seasonal Naive ensemble with 57 features (Fourier harmonics, anchor lags, Bayesian target encoding, spatial IDW), log1p transform, and Conformalized Quantile Regression for calibrated intervals
 - **Supervised anomaly detection** -- LightGBM binary classifier with ~80 features including flatline/spike detectors and XGBOD Isolation Forest scores, with F1-optimized thresholds and adaptive temporal smoothing
-- **REST API** -- FastAPI service with forecast and anomaly endpoints, input validation, auto-generated OpenAPI docs, and Cloud Run-ready Docker packaging
+- **REST API** -- FastAPI service with forecast and anomaly endpoints, input validation, auto-generated OpenAPI docs, deployed on Cloud Run (scale 0-3)
 - **Interactive dashboard** -- Streamlit app with 6 tabs covering time series, geographic, data quality, statistical, forecast, and anomaly views
 - **Experiment tracking** -- 9 forecasting and 2 anomaly experiments logged in MLflow with full metrics, parameters, and artifacts
+- **Infrastructure as Code** -- Terraform-managed GCP resources (BigQuery, Cloud Run, Artifact Registry, KMS, IAM, Workload Identity Federation)
+- **CI/CD** -- GitHub Actions workflows for Terraform validate/plan/apply and Docker build+deploy, with SOPS-encrypted secrets
 
 ---
 
@@ -28,9 +31,12 @@ End-to-end air quality forecasting and instrument anomaly detection for 25 Seoul
 |-------------|---------|-------|
 | Python | 3.13+ | Runtime |
 | pip | latest | Package management |
+| GCP account | -- | BigQuery, Cloud Run access |
+| gcloud CLI | latest | GCP authentication |
+| Terraform | 1.7+ | Infrastructure management |
 | Docker | 20+ | Optional, for containerized deployment |
 
-No external database server is needed. DuckDB runs embedded, and DBT seeds the data from CSV files included in the repository.
+The data pipeline runs on BigQuery (GCP project `mpc-pollution-331382`). Authentication uses `gcloud auth application-default login`.
 
 ## Quick Start
 
@@ -62,8 +68,14 @@ make docker-compose-up   # API :8080, MLflow :5001, Dashboard :8501
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
+│  INFRASTRUCTURE (Terraform)                                         │
+│  GCP Project ──> BigQuery, Cloud Run, Artifact Registry, KMS, IAM  │
+│  GitHub Actions ──> Terraform plan/apply, Docker build+deploy       │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
 │  DATA LAYER                                                         │
-│  CSV seeds ──> DBT / DuckDB ──> measurements_clean (3.7M rows)     │
+│  CSV seeds ──> DBT / BigQuery ──> measurements_clean (3.7M rows)   │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -75,20 +87,20 @@ make docker-compose-up   # API :8080, MLflow :5001, Dashboard :8501
 ┌──────────────────────────────▼──────────────────────────────────────┐
 │  MODEL SERVING                                                      │
 │  Trained pipelines ──> FastAPI (app/) ──> /predict/forecast          │
-│                                      ──> /predict/anomaly           │
+│                    ──> Cloud Run       ──> /predict/anomaly          │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
 │  VISUALIZATION                                                      │
-│  DuckDB + predictions CSV ──> Streamlit Dashboard (6 tabs)          │
+│  BigQuery + predictions CSV ──> Streamlit Dashboard (6 tabs)        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The **data layer** owns all transformations: raw CSVs are seeded into DuckDB, unpivoted from wide to long format, joined 1:1 with instrument status, and enriched with temporal features and air quality classifications. Everything downstream reads from `measurements_clean`.
+The **data layer** owns all transformations: raw CSVs are seeded into BigQuery via DBT, unpivoted from wide to long format, joined 1:1 with instrument status, and enriched with temporal features and air quality classifications. Everything downstream reads from `measurements_clean` in the `logic` dataset.
 
 The **ML layer** trains per-station, per-pollutant models. Forecasting and anomaly detection are independent pipelines that share the same cleaned data but produce separate model artifacts.
 
-The **serving layer** loads serialized pipelines at startup and exposes them through typed Pydantic schemas. The **dashboard** reads directly from DuckDB and the prediction CSV outputs.
+The **serving layer** loads serialized pipelines at startup and exposes them through typed Pydantic schemas. At prediction time, spatial and cross-pollutant features are computed via live BigQuery queries. The **dashboard** reads directly from BigQuery and the prediction CSV outputs.
 
 ---
 
@@ -187,6 +199,34 @@ Start with `make dashboard` (default: `http://localhost:8501`).
 
 ---
 
+## Infrastructure
+
+### Terraform (`terraform/`)
+
+All GCP resources managed as code. Bootstrap creates the project; main config manages the rest.
+
+```bash
+# First-time setup (run once)
+cd terraform/bootstrap && terraform apply
+
+# Ongoing changes go through GitHub Actions, or locally:
+cd terraform && sops --decrypt terraform.tfvars.enc > terraform.tfvars
+terraform plan
+```
+
+### CI/CD (`.github/workflows/`)
+
+| Workflow | Trigger | Action |
+|----------|---------|--------|
+| `terraform-validate` | PR to `terraform/**` | fmt + validate |
+| `terraform-plan` | PR to `terraform/**` | Plan posted as PR comment |
+| `terraform-apply` | Push to main | Apply with approval gate |
+| `docker-build-deploy` | Push to main (app/src changes) | Build + push to AR + deploy to Cloud Run |
+
+Secrets encrypted with SOPS + GCP KMS. GitHub Actions authenticates via Workload Identity Federation (no service account keys).
+
+---
+
 ## Development
 
 ### Training models
@@ -233,14 +273,22 @@ pollution-prediction/
 │   ├── anomaly/
 │   │   ├── detector.py                 Supervised LightGBM (production)
 │   │   └── detector_isolation_forest.py  Baseline (Exp 1)
-│   ├── data/                           DuckDB loader, Open-Meteo weather client
-│   └── utils/                          Constants (station codes, item codes)
-├── dbt_pollution/                    DBT project
+│   ├── data/                           BigQuery loader, Open-Meteo weather client
+│   └── utils/                          Constants (BQ project, item codes)
+├── dbt_pollution/                    DBT project (BigQuery)
 │   ├── seeds/                          Raw CSV data (~175 MB)
+│   ├── macros/                         generate_schema_name (dataset routing)
 │   └── models/
 │       ├── landing/                    lnd_measurements, lnd_instrument_data
 │       ├── logic/                      measurements_long > _with_status > _clean
 │       └── presentation/              dashboard_wide
+├── terraform/                        Infrastructure as Code
+│   ├── bootstrap/                      GCP project, APIs, state bucket, KMS, WIF
+│   ├── modules/                        bigquery, cloud_run, artifact_registry, iam, kms, workload_identity
+│   └── terraform.tfvars.enc            SOPS-encrypted variables
+├── .github/
+│   ├── workflows/                      Terraform + Docker CI/CD
+│   └── CODEOWNERS                      Infra review requirements
 ├── scripts/                          Automation
 │   ├── export_models.py                Serialize pipelines for serving
 │   ├── train_with_mlflow.py            Train with experiment logging
@@ -248,6 +296,7 @@ pollution-prediction/
 ├── notebooks/                        EDA, forecasting, anomaly, LSTM experiment
 ├── tests/                            pytest suite (API + pipeline tests)
 ├── outputs/                          Prediction CSVs and validation plots
+├── .sops.yaml                        SOPS encryption rules (GCP KMS)
 ├── Dockerfile                        Cloud Run-ready container
 ├── docker-compose.yml                Local dev: API + MLflow + Dashboard
 ├── Makefile                          All project operations (make help)

@@ -5,7 +5,6 @@ services:
       - "8080:8080"
     volumes:
       - ./outputs:/app/outputs
-      - ./dbt_pollution/dev.duckdb:/app/dbt_pollution/dev.duckdb
     restart: unless-stopped
 
   mlflow:
@@ -30,7 +29,6 @@ services:
     volumes:
       - ./streamlit_air_quality_dashboard.py:/app/streamlit_air_quality_dashboard.py
       - ./outputs:/app/outputs
-      - ./dbt_pollution/dev.duckdb:/app/dbt_pollution/dev.duckdb
     command: >
       streamlit run streamlit_air_quality_dashboard.py
       --server.port 8501
