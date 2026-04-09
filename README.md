@@ -270,6 +270,18 @@ Each step would be an Airflow `GKEStartPodOperator` or `CloudRunJobOperator` wit
 
 **Why it's not implemented:** Cloud Composer's minimum cost (~$300/month for the smallest environment) exceeds the free tier budget. For a cost-effective alternative, a GitHub Actions scheduled workflow (`cron: '0 6 * * 1'`) with the same steps would achieve the same result at zero cost.
 
+### Production Roadmap
+
+The project implements IaC, CI/CD, typed APIs, and data quality testing. The following items would complete the production story:
+
+| Gap | Current State | Production Target |
+|-----|--------------|-------------------|
+| **Data ingestion** | Static CSV seeds (2021-2023) | Scheduled Cloud Run Job pulling from the [AirKorea Open API](https://www.airkorea.or.kr/) into a BigQuery staging table, with DBT incremental models |
+| **Model artifact storage** | pkl files baked into Docker image; retraining requires full rebuild | Store in GCS bucket, download at Cloud Run startup via `MODELS_BUCKET` env var |
+| **Model monitoring** | None | Log predictions to a BigQuery `predictions_log` table, run scheduled queries comparing against actuals for drift detection (PSI, KL divergence on feature distributions) |
+| **Integration tests** | Unit tests with synthetic data only | CI step that runs `load_series()` against BigQuery and validates row counts and schema |
+| **Alerting** | Budget alerts only | Cloud Monitoring uptime checks on `/health`, alert policies on error rate and latency, Slack/PagerDuty integration |
+
 ---
 
 ## Development
