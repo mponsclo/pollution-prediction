@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
-import duckdb
 import plotly.express as px
 import plotly.graph_objects as go
 import folium
 from streamlit_folium import st_folium
 import os
+
+from src.data.loader import bq_to_dataframe
+from src.utils.constants import BQ_PROJECT
 
 # Configure page
 st.set_page_config(
@@ -39,34 +41,23 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    """Load data from DuckDB"""
-    db_path = 'dbt_pollution/dev.duckdb'
-    if not os.path.exists(db_path):
-        st.error(f"Database not found at {db_path}. Please check the path.")
-        st.stop()
-    
-    conn = duckdb.connect(db_path)
-    
-    # Load the complete dataset from the wide-format presentation model
-    query = """
-    SELECT
-        measurement_datetime,
-        station_code,
-        latitude,
-        longitude,
-        so2_value,
-        no2_value,
-        o3_value,
-        co_value,
-        pm10_value,
-        pm2_5_value,
-        instrument_status
-    FROM dashboard_wide
-    ORDER BY measurement_datetime, station_code
-    """
-    
-    df = conn.execute(query).df()
-    conn.close()
+    """Load data from BigQuery presentation layer."""
+    df = bq_to_dataframe(f"""
+        SELECT
+            measurement_datetime,
+            station_code,
+            latitude,
+            longitude,
+            so2_value,
+            no2_value,
+            o3_value,
+            co_value,
+            pm10_value,
+            pm2_5_value,
+            instrument_status
+        FROM `{BQ_PROJECT}.presentation.dashboard_wide`
+        ORDER BY measurement_datetime, station_code
+    """)
     
     # Add temporal features
     df['year'] = df['measurement_datetime'].dt.year
