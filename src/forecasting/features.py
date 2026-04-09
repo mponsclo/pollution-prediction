@@ -268,37 +268,37 @@ def get_feature_columns(df: pd.DataFrame) -> list[str]:
 # Cross-pollutant features
 # ---------------------------------------------------------------------------
 
+def _bq_query(query: str) -> pd.DataFrame:
+    """Execute a BigQuery query and return a DataFrame with proper numeric types."""
+    from src.data.loader import bq_to_dataframe
+    return bq_to_dataframe(query)
+
+
 def compute_cross_pollutant_features(
     station_code: int,
     target_item_code: int,
     train_index: pd.DatetimeIndex,
-    db_path: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     """Compute features from other pollutants at the same station.
 
     For each non-target pollutant, adds anchor lags (168h, 336h) and
     historical hourly means as features.
     """
-    import duckdb
-    from src.utils.constants import DB_PATH, ITEM_NAMES
-
-    path = db_path or DB_PATH
-    con = duckdb.connect(path, read_only=True)
+    from src.utils.constants import BQ_TABLE_CLEAN, ITEM_NAMES
 
     other_items = [ic for ic in ITEM_NAMES if ic != target_item_code]
 
     # Load other pollutants for this station
     placeholders = ",".join(str(c) for c in other_items)
-    data = con.sql(f"""
+    data = _bq_query(f"""
         SELECT measurement_datetime, item_code, clean_value
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         WHERE station_code = {station_code}
           AND item_code IN ({placeholders})
           AND instrument_status = 0
           AND clean_value IS NOT NULL
         ORDER BY measurement_datetime
-    """).df()
-    con.close()
+    """)
 
     data["measurement_datetime"] = pd.to_datetime(data["measurement_datetime"])
 
@@ -341,14 +341,9 @@ def compute_cross_pollutant_for_prediction(
     prediction_index: pd.DatetimeIndex,
     xpol_ctx: dict,
     train_index_end: pd.Timestamp,
-    db_path: str | None = None,
 ) -> pd.DataFrame:
     """Compute cross-pollutant features for future timestamps."""
-    import duckdb
-    from src.utils.constants import DB_PATH, ITEM_NAMES
-
-    path = db_path or DB_PATH
-    con = duckdb.connect(path, read_only=True)
+    from src.utils.constants import BQ_TABLE_CLEAN, ITEM_NAMES
 
     station_code = xpol_ctx["station_code"]
     other_items = xpol_ctx["other_items"]
@@ -358,16 +353,15 @@ def compute_cross_pollutant_for_prediction(
 
     # Load recent data for anchor lags
     placeholders = ",".join(str(c) for c in other_items)
-    recent = con.sql(f"""
+    recent = _bq_query(f"""
         SELECT measurement_datetime, item_code, clean_value
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         WHERE station_code = {station_code}
           AND item_code IN ({placeholders})
           AND instrument_status = 0
           AND clean_value IS NOT NULL
         ORDER BY measurement_datetime
-    """).df()
-    con.close()
+    """)
 
     recent["measurement_datetime"] = pd.to_datetime(recent["measurement_datetime"])
     pivot = recent.pivot_table(
@@ -404,25 +398,20 @@ def compute_spatial_features(
     station_code: int,
     item_code: int,
     train_index: pd.DatetimeIndex,
-    db_path: str | None = None,
     k_neighbors: int = 5,
 ) -> tuple[pd.DataFrame, dict]:
     """Compute IDW-weighted spatial features from neighboring stations.
 
     Returns (feature_df, spatial_context) for use on future timestamps.
     """
-    import duckdb
-    from src.utils.constants import DB_PATH
-
-    path = db_path or DB_PATH
-    con = duckdb.connect(path, read_only=True)
+    from src.utils.constants import BQ_TABLE_CLEAN
 
     # Get all stations with coordinates
-    stations = con.sql("""
+    stations = _bq_query(f"""
         SELECT DISTINCT station_code, latitude, longitude
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         ORDER BY station_code
-    """).df()
+    """)
 
     # Get target station coords
     target_row = stations[stations["station_code"] == station_code].iloc[0]
@@ -442,16 +431,15 @@ def compute_spatial_features(
 
     # Load neighbor series for the same pollutant
     placeholders = ",".join(str(c) for c in neighbor_codes)
-    neighbor_data = con.sql(f"""
+    neighbor_data = _bq_query(f"""
         SELECT measurement_datetime, station_code, clean_value
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         WHERE item_code = {item_code}
           AND station_code IN ({placeholders})
           AND instrument_status = 0
           AND clean_value IS NOT NULL
         ORDER BY measurement_datetime
-    """).df()
-    con.close()
+    """)
 
     neighbor_data["measurement_datetime"] = pd.to_datetime(neighbor_data["measurement_datetime"])
 
@@ -491,30 +479,24 @@ def compute_spatial_features(
 def compute_spatial_features_for_prediction(
     prediction_index: pd.DatetimeIndex,
     spatial_ctx: dict,
-    db_path: str | None = None,
 ) -> pd.DataFrame:
     """Compute spatial features for future timestamps from latest neighbor data."""
-    import duckdb
-    from src.utils.constants import DB_PATH
-
-    path = db_path or DB_PATH
-    con = duckdb.connect(path, read_only=True)
+    from src.utils.constants import BQ_TABLE_CLEAN
 
     neighbor_codes = spatial_ctx["neighbor_codes"]
     idw_weights = spatial_ctx["idw_weights"]
     item_code = spatial_ctx["item_code"]
 
     placeholders = ",".join(str(c) for c in neighbor_codes)
-    neighbor_data = con.sql(f"""
+    neighbor_data = _bq_query(f"""
         SELECT measurement_datetime, station_code, clean_value
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         WHERE item_code = {item_code}
           AND station_code IN ({placeholders})
           AND instrument_status = 0
           AND clean_value IS NOT NULL
         ORDER BY measurement_datetime
-    """).df()
-    con.close()
+    """)
 
     neighbor_data["measurement_datetime"] = pd.to_datetime(neighbor_data["measurement_datetime"])
     pivot = neighbor_data.pivot_table(

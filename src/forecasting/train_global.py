@@ -9,10 +9,10 @@ Experiment 8.
 
 import numpy as np
 import pandas as pd
-import duckdb
 from lightgbm import LGBMRegressor
 
-from src.utils.constants import DB_PATH, ITEM_NAMES, STATUS_NORMAL
+from src.utils.constants import BQ_TABLE_CLEAN, ITEM_NAMES, STATUS_NORMAL
+from src.data.loader import bq_to_dataframe
 from src.forecasting.features import (
     add_fourier_features,
     compute_target_encodings,
@@ -22,21 +22,18 @@ from src.forecasting.features import (
 
 def load_all_series(end_before: str | None = None) -> pd.DataFrame:
     """Load all station×pollutant series from the database."""
-    con = duckdb.connect(DB_PATH, read_only=True)
-
     where = "instrument_status = 0 AND clean_value IS NOT NULL"
     if end_before:
         where += f" AND measurement_datetime < '{end_before}'"
 
-    df = con.sql(f"""
+    df = bq_to_dataframe(f"""
         SELECT
             measurement_datetime, station_code, item_code, clean_value,
             latitude, longitude
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         WHERE {where}
         ORDER BY station_code, item_code, measurement_datetime
-    """).df()
-    con.close()
+    """)
 
     df["measurement_datetime"] = pd.to_datetime(df["measurement_datetime"])
     return df
@@ -232,16 +229,14 @@ def predict_global(
     stats = pipeline["stats"]
     feat_cols = pipeline["feat_cols"]
 
-    con = duckdb.connect(DB_PATH, read_only=True)
-    coords = con.sql(f"""
+    row = bq_to_dataframe(f"""
         SELECT DISTINCT latitude, longitude
-        FROM measurements_clean
+        FROM {BQ_TABLE_CLEAN}
         WHERE station_code = {station_code}
         LIMIT 1
-    """).fetchone()
-    con.close()
+    """)
 
-    lat, lon = coords[0], coords[1]
+    lat, lon = row.iloc[0]["latitude"], row.iloc[0]["longitude"]
 
     # Build a dummy df for feature generation
     n = len(prediction_index)

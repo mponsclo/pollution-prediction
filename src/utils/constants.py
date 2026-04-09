@@ -3,7 +3,11 @@
 import os
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DB_PATH = os.path.join(PROJECT_ROOT, "dbt_pollution", "dev.duckdb")
+
+# BigQuery configuration
+BQ_PROJECT = os.environ.get("GCP_PROJECT_ID", "mpc-pollution-331382")
+BQ_DATASET = "logic"
+BQ_TABLE_CLEAN = f"`{BQ_PROJECT}.{BQ_DATASET}.measurements_clean`"
 
 # Pollutant item codes
 ITEM_CODES = {

@@ -15,8 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ src/
 COPY app/ app/
 COPY outputs/ outputs/
-COPY dbt_pollution/dev.duckdb dbt_pollution/dev.duckdb
-COPY data/ data/
 
 EXPOSE 8080
 
