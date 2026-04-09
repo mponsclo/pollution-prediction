@@ -225,6 +225,51 @@ terraform plan
 
 Secrets encrypted with SOPS + GCP KMS. GitHub Actions authenticates via Workload Identity Federation (no service account keys).
 
+### Future: Orchestration with Cloud Composer
+
+The current pipeline is manually triggered (`make dbt-build` → `make predict` → CI/CD deploys). In production, this would be orchestrated with **Cloud Composer** (managed Airflow):
+
+```
+                         ┌──────────────┐
+                         │   Scheduler  │
+                         │  (daily/weekly)
+                         └──────┬───────┘
+                                │
+              ┌─────────────────▼─────────────────┐
+              │   1. ingest_new_data               │
+              │   Cloud Run Job: pull latest        │
+              │   measurements from station API     │
+              └─────────────────┬─────────────────┘
+                                │
+              ┌─────────────────▼─────────────────┐
+              │   2. dbt_build                     │
+              │   Cloud Run Job: dbt build          │
+              │   (seed + transform + test)         │
+              └─────────────────┬─────────────────┘
+                                │
+              ┌─────────────────▼─────────────────┐
+              │   3. retrain_models                │
+              │   Cloud Run Job: train + export     │
+              │   pkl files → GCS bucket           │
+              └─────────────────┬─────────────────┘
+                                │
+              ┌─────────────────▼─────────────────┐
+              │   4. deploy_api                    │
+              │   gcloud run deploy with new        │
+              │   model revision                   │
+              └─────────────────┬─────────────────┘
+                                │
+              ┌─────────────────▼─────────────────┐
+              │   5. validate_predictions          │
+              │   Run smoke tests against live      │
+              │   endpoint, log metrics to BQ      │
+              └───────────────────────────────────┘
+```
+
+Each step would be an Airflow `GKEStartPodOperator` or `CloudRunJobOperator` with retries, SLA alerts, and Slack/email notifications on failure. Model artifacts would move from baked-into-Docker to stored in GCS and downloaded at startup, enabling retraining without image rebuilds.
+
+**Why it's not implemented:** Cloud Composer's minimum cost (~$300/month for the smallest environment) exceeds the free tier budget. For a cost-effective alternative, a GitHub Actions scheduled workflow (`cron: '0 6 * * 1'`) with the same steps would achieve the same result at zero cost.
+
 ---
 
 ## Development
