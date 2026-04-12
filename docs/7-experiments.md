@@ -1,4 +1,6 @@
-# Experiments Log
+# 7. Experiments Log
+
+Raw journal of every forecasting and anomaly-detection experiment run on the project. The production models are Experiment 5 (forecasting) and Experiment 2 (anomaly). Four forecasting experiments were rejected; the reasoning is included so the failure paths are reproducible.
 
 ## Task 2: Forecasting
 
@@ -18,7 +20,7 @@ Value from the same hour, 7 days ago. Establishes the performance floor.
 
 XGBoost with lag features (1h-168h) and rolling stats. Each prediction feeds back as input for the next.
 
-**Result**: Catastrophic error accumulation over 720+ steps. RMSE 6-10x worse than naive. PM10 predictions drifted to 300-400 (actual range ~10-200).
+**Result**: Catastrophic error accumulation over 720+ steps. RMSE 6-10× worse than naive. PM10 predictions drifted to 300-400 (actual range ~10-200).
 
 **Lesson**: Recursive multi-step prediction is unsuitable for month-ahead horizons with tree models.
 
@@ -42,13 +44,13 @@ Exp 4 plus three production improvements:
 3. **Cross-station spatial features** — IDW-weighted average of 5 nearest neighbor stations
 
 | Target | Naive nRMSE | Ensemble nRMSE | Improvement | PI Coverage |
-|--------|------------|---------------|------------|-------------|
-| SO2    | 1.067      | **0.917**     | 14%        | 93.8%       |
-| NO2    | 0.867      | **0.712**     | 18%        | 91.7%       |
-| O3     | 0.787      | **0.715**     | 9%         | 90.5%       |
-| CO     | 0.610      | **0.449**     | 26%        | 93.6%       |
-| PM10   | 0.852      | **0.518**     | 39%        | 93.1%       |
-| PM2.5  | 0.751      | **0.546**     | 27%        | 93.5%       |
+|--------|-------------|----------------|-------------|-------------|
+| SO2    | 1.067       | **0.917**      | 14%         | 93.8%       |
+| NO2    | 0.867       | **0.712**      | 18%         | 91.7%       |
+| O3     | 0.787       | **0.715**      | 9%          | 90.5%       |
+| CO     | 0.610       | **0.449**      | 26%         | 93.6%       |
+| PM10   | 0.852       | **0.518**      | 39%         | 93.1%       |
+| PM2.5  | 0.751       | **0.546**      | 27%         | 93.5%       |
 
 **Why this is the production model**: Best balance of accuracy, calibrated uncertainty, and simplicity. No external API dependencies.
 
@@ -59,13 +61,13 @@ PyTorch LSTM (1 layer, hidden=32) encodes 48h lookback → context + Fourier fea
 **Result** (single holdout):
 
 | Target | LSTM nRMSE | LightGBM nRMSE | Winner |
-|--------|-----------|---------------|--------|
-| SO2    | 0.737     | 0.917         | LSTM   |
-| NO2    | 0.639     | 0.712         | LSTM   |
-| O3     | 0.907     | 0.715         | LightGBM |
-| CO     | 0.633     | 0.449         | LightGBM |
-| PM10   | 1.513     | 0.518         | LightGBM |
-| PM2.5  | 0.718     | 0.546         | LightGBM |
+|--------|------------|----------------|--------|
+| SO2    | 0.737      | 0.917          | LSTM   |
+| NO2    | 0.639      | 0.712          | LSTM   |
+| O3     | 0.907      | 0.715          | LightGBM |
+| CO     | 0.633      | 0.449          | LightGBM |
+| PM10   | 1.513      | 0.518          | LightGBM |
+| PM2.5  | 0.718      | 0.546          | LightGBM |
 
 LSTM wins 2/6 on single holdout but loses decisively on PM10/CO. Limited by small dataset, CPU training, and inability to leverage 57 engineered features.
 
@@ -124,11 +126,11 @@ Unsupervised Isolation Forest with 11 features. Ignores available labels entirel
 | 227/PM2.5 | 0.529 |
 | **Average** | **0.310** |
 
-**Fundamental flaw**: Using unsupervised method on a supervised problem — instrument_status labels are available but unused.
+**Fundamental flaw**: Using unsupervised method on a supervised problem — `instrument_status` labels are available but unused.
 
 ### Exp 2: Supervised LightGBM Classifier (SELECTED)
 
-**Key insight**: We HAVE labels (instrument_status). Switch from unsupervised Isolation Forest to supervised LightGBM binary classifier.
+**Key insight**: We HAVE labels (`instrument_status`). Switch from unsupervised Isolation Forest to supervised LightGBM binary classifier.
 
 **Features (~80)**:
 - Rolling stats at 6 windows (3h-168h): mean, std, min, max, range, z-score
@@ -145,7 +147,7 @@ Unsupervised Isolation Forest with 11 features. Ignores available labels entirel
 **Post-processing**: Adaptive temporal smoothing — min-run-length filter (3h) only when anomaly rate > 5%, otherwise keep all detections (sparse anomalies are often isolated events).
 
 | Target | Old IF F1 | New LightGBM F1 | Precision | Recall | Improvement |
-|--------|----------|-----------------|-----------|--------|------------|
+|--------|-----------|-----------------|-----------|--------|-------------|
 | 205/SO2 | 0.500 | **1.000** | 1.000 | 1.000 | +100% |
 | 209/NO2 | 0.000 | 0.000 | 0.000 | 0.000 | Same (3 true anomalies — too few) |
 | 223/O3 | 0.667 | **1.000** | 1.000 | 1.000 | +50% |
@@ -155,9 +157,9 @@ Unsupervised Isolation Forest with 11 features. Ignores available labels entirel
 | **Average** | **0.310** | **0.620** | — | — | **+100%** |
 
 **Notes**:
-- Station 224/CO: massive improvement (0.029→0.956) because the validation month was 95% anomalous — supervised learning detects this easily, Isolation Forest with 4.5% contamination couldn't
-- Station 209/NO2: 0.000 on both — only 3 true anomalies in validation, too few for any classifier
-- Station 205/SO2 and 223/O3: perfect F1 on validation (4 anomalies each, all caught)
-- Average F1 doubled from 0.31 to 0.62
+- Station 224/CO: massive improvement (0.029→0.956) because the validation month was 95% anomalous — supervised learning detects this easily, Isolation Forest with 4.5% contamination couldn't.
+- Station 209/NO2: 0.000 on both — only 3 true anomalies in validation, too few for any classifier.
+- Station 205/SO2 and 223/O3: perfect F1 on validation (4 anomalies each, all caught).
+- Average F1 doubled from 0.31 to 0.62.
 
-**Output**: `outputs/anomaly_predictions.csv`
+**Output**: [`outputs/anomaly_predictions.csv`](../outputs/anomaly_predictions.csv).

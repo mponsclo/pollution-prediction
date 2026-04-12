@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.model_loader import load_models
-from app.routers import health, forecast, anomaly
+from app.routers import anomaly, forecast, health
 
 
 @asynccontextmanager
@@ -29,8 +29,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Seoul Air Quality Prediction API",
-    description="Hourly pollutant forecasting and instrument anomaly detection "
-                "for 25 Seoul monitoring stations.",
+    description="Hourly pollutant forecasting and instrument anomaly detection for 25 Seoul monitoring stations.",
     version="1.0.0",
     lifespan=lifespan,
 )

@@ -1,10 +1,9 @@
 """Anomaly detection endpoint."""
 
-from fastapi import APIRouter, HTTPException, Request
 import pandas as pd
-import numpy as np
+from fastapi import APIRouter, HTTPException, Request
 
-from app.schemas import AnomalyRequest, AnomalyResponse, AnomalyPoint
+from app.schemas import AnomalyPoint, AnomalyRequest, AnomalyResponse
 from src.anomaly.detector import predict_anomalies
 
 router = APIRouter()
@@ -16,13 +15,11 @@ def predict_anomaly(request: Request, body: AnomalyRequest):
     key = ("anomaly", body.station_code, body.item_code)
 
     if key not in models:
-        available = [
-            f"{k[1]}/{k[2]}" for k in models if k[0] == "anomaly"
-        ]
+        available = [f"{k[1]}/{k[2]}" for k in models if k[0] == "anomaly"]
         raise HTTPException(
             status_code=404,
             detail=f"No anomaly model for station {body.station_code}, "
-                   f"item_code {body.item_code}. Available: {available}",
+            f"item_code {body.item_code}. Available: {available}",
         )
 
     if len(body.measurements) < 3:
@@ -31,10 +28,7 @@ def predict_anomaly(request: Request, body: AnomalyRequest):
     pipeline = models[key]
 
     # Build DataFrame from input
-    df = pd.DataFrame([
-        {"measurement_datetime": m.datetime, "clean_value": m.value}
-        for m in body.measurements
-    ])
+    df = pd.DataFrame([{"measurement_datetime": m.datetime, "clean_value": m.value} for m in body.measurements])
     df["measurement_datetime"] = pd.to_datetime(df["measurement_datetime"])
     df = df.set_index("measurement_datetime").sort_index()
 

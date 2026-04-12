@@ -8,28 +8,28 @@ and conformalized quantile regression for calibrated prediction intervals.
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
-from sklearn.linear_model import Ridge
 from scipy.optimize import minimize
+from sklearn.linear_model import Ridge
 
+from src.data.weather import (
+    get_weather_features_for_prediction,
+    get_weather_for_station,
+)
 from src.forecasting.features import (
-    build_train_features,
-    build_prediction_features,
-    get_feature_columns,
     add_fourier_features,
-    compute_spatial_features,
-    compute_spatial_features_for_prediction,
+    build_prediction_features,
+    build_train_features,
     compute_cross_pollutant_features,
     compute_cross_pollutant_for_prediction,
+    compute_spatial_features,
+    compute_spatial_features_for_prediction,
+    get_feature_columns,
 )
-from src.data.weather import (
-    get_weather_for_station,
-    get_weather_features_for_prediction,
-)
-
 
 # ---------------------------------------------------------------------------
 # Seasonal Naive baseline
 # ---------------------------------------------------------------------------
+
 
 def seasonal_naive_predict(
     train_series: pd.Series,
@@ -51,6 +51,7 @@ def seasonal_naive_predict(
 # ---------------------------------------------------------------------------
 # LightGBM training
 # ---------------------------------------------------------------------------
+
 
 def _lgbm_params(objective: str = "regression", alpha: float | None = None) -> dict:
     params = dict(
@@ -103,6 +104,7 @@ def train_lgbm(
 # Ridge with Fourier features (complementary model)
 # ---------------------------------------------------------------------------
 
+
 def train_ridge(
     train_series: pd.Series,
 ) -> tuple[Ridge, pd.Timestamp]:
@@ -138,6 +140,7 @@ def predict_ridge(
 # Ensemble: optimized weighted average
 # ---------------------------------------------------------------------------
 
+
 def optimize_weights(
     y_true: np.ndarray,
     predictions: dict[str, np.ndarray],
@@ -163,6 +166,7 @@ def optimize_weights(
 # Conformal calibration (CQR)
 # ---------------------------------------------------------------------------
 
+
 def calibrate_intervals_cqr(
     y_cal: np.ndarray,
     q_lo_cal: np.ndarray,
@@ -184,6 +188,7 @@ def calibrate_intervals_cqr(
 # Walk-forward cross-validation
 # ---------------------------------------------------------------------------
 
+
 def walk_forward_cv(
     train_series: pd.Series,
     n_folds: int = 3,
@@ -202,11 +207,13 @@ def walk_forward_cv(
         if train_end < min_train_size:
             break
 
-        folds.append({
-            "train_end": train_end,
-            "test_start": test_start,
-            "test_end": test_end,
-        })
+        folds.append(
+            {
+                "train_end": train_end,
+                "test_start": test_start,
+                "test_end": test_end,
+            }
+        )
 
     return list(reversed(folds))
 
@@ -214,6 +221,7 @@ def walk_forward_cv(
 # ---------------------------------------------------------------------------
 # Full pipeline
 # ---------------------------------------------------------------------------
+
 
 def _add_spatial(df: pd.DataFrame, spatial_df: pd.DataFrame) -> pd.DataFrame:
     """Merge spatial features into feature DataFrame."""
@@ -249,9 +257,7 @@ def train_forecast_pipeline(
     spatial_ctx = None
     if station_code is not None and item_code is not None:
         try:
-            spatial_train, spatial_ctx = compute_spatial_features(
-                station_code, item_code, train_series.index
-            )
+            spatial_train, spatial_ctx = compute_spatial_features(station_code, item_code, train_series.index)
             for c in spatial_train.columns:
                 if "mean" in c:
                     spatial_train[c] = np.log1p(spatial_train[c])
@@ -264,9 +270,7 @@ def train_forecast_pipeline(
     xpol_ctx = None
     if station_code is not None and item_code == 2:  # NO2 only
         try:
-            xpol_train, xpol_ctx = compute_cross_pollutant_features(
-                station_code, item_code, train_series.index
-            )
+            xpol_train, xpol_ctx = compute_cross_pollutant_features(station_code, item_code, train_series.index)
             for c in xpol_train.columns:
                 if "lag" in c or "rmean" in c:
                     xpol_train[c] = np.log1p(xpol_train[c].clip(lower=0))
@@ -279,9 +283,7 @@ def train_forecast_pipeline(
     weather_meta = None
     if station_lat is not None and station_lon is not None:
         try:
-            weather_train = get_weather_for_station(
-                station_lat, station_lon, train_series.index
-            )
+            weather_train = get_weather_for_station(station_lat, station_lon, train_series.index)
             train_feats = _add_spatial(train_feats, weather_train)
             feat_cols = get_feature_columns(train_feats)
             weather_meta = {"lat": station_lat, "lon": station_lon}
@@ -312,9 +314,7 @@ def train_forecast_pipeline(
 
         if xpol_ctx is not None:
             try:
-                xpol_val = compute_cross_pollutant_for_prediction(
-                    val_index, xpol_ctx, train_series.index[-1]
-                )
+                xpol_val = compute_cross_pollutant_for_prediction(val_index, xpol_ctx, train_series.index[-1])
                 for c in xpol_val.columns:
                     if "lag" in c or "rmean" in c:
                         xpol_val[c] = np.log1p(xpol_val[c].clip(lower=0))
@@ -324,9 +324,7 @@ def train_forecast_pipeline(
 
         if weather_meta is not None:
             try:
-                weather_val = get_weather_for_station(
-                    weather_meta["lat"], weather_meta["lon"], val_index
-                )
+                weather_val = get_weather_for_station(weather_meta["lat"], weather_meta["lon"], val_index)
                 val_feats = _add_spatial(val_feats, weather_val)
             except Exception:
                 pass
@@ -386,9 +384,7 @@ def train_forecast_pipeline(
         # CQR calibration on validation (original scale)
         q05_val = np.maximum(np.expm1(q05_val_log), 0)
         q95_val = np.maximum(np.expm1(q95_val_log), 0)
-        cqr_correction = calibrate_intervals_cqr(
-            val_series.values, q05_val, q95_val, target_coverage=0.90
-        )
+        cqr_correction = calibrate_intervals_cqr(val_series.values, q05_val, q95_val, target_coverage=0.90)
 
     context["train_series_original"] = train_series  # keep original for naive
 
@@ -424,9 +420,7 @@ def predict_with_pipeline(
     # Spatial features
     if pipeline.get("spatial_ctx") is not None:
         try:
-            spatial_pred = compute_spatial_features_for_prediction(
-                prediction_index, pipeline["spatial_ctx"]
-            )
+            spatial_pred = compute_spatial_features_for_prediction(prediction_index, pipeline["spatial_ctx"])
             for c in spatial_pred.columns:
                 if "mean" in c:
                     spatial_pred[c] = np.log1p(spatial_pred[c])
@@ -438,8 +432,7 @@ def predict_with_pipeline(
     if pipeline.get("xpol_ctx") is not None:
         try:
             xpol_pred = compute_cross_pollutant_for_prediction(
-                prediction_index, pipeline["xpol_ctx"],
-                train_series_orig.index[-1]
+                prediction_index, pipeline["xpol_ctx"], train_series_orig.index[-1]
             )
             for c in xpol_pred.columns:
                 if "lag" in c or "rmean" in c:
@@ -496,18 +489,17 @@ def predict_with_pipeline(
 
     # Ensemble
     w = pipeline["weights"]
-    ensemble = (
-        w.get("lgbm", 0) * lgbm_preds
-        + w.get("ridge", 0) * ridge_preds
-        + w.get("naive", 0) * naive_preds
-    )
+    ensemble = w.get("lgbm", 0) * lgbm_preds + w.get("ridge", 0) * ridge_preds + w.get("naive", 0) * naive_preds
     ensemble = np.maximum(ensemble, 0)
 
-    return pd.DataFrame({
-        "ensemble": ensemble,
-        "lgbm": lgbm_preds,
-        "ridge": ridge_preds,
-        "naive": naive_preds,
-        "q05": q05_cal,
-        "q95": q95_cal,
-    }, index=prediction_index)
+    return pd.DataFrame(
+        {
+            "ensemble": ensemble,
+            "lgbm": lgbm_preds,
+            "ridge": ridge_preds,
+            "naive": naive_preds,
+            "q05": q05_cal,
+            "q95": q95_cal,
+        },
+        index=prediction_index,
+    )

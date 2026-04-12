@@ -12,10 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import joblib
 import pandas as pd
 
-from src.data.loader import load_series, load_full_series
-from src.forecasting.train_lgbm_ensemble import train_forecast_pipeline
 from src.anomaly.detector import train_anomaly_pipeline
-from src.utils.constants import FORECAST_TARGETS, ANOMALY_TARGETS
+from src.data.loader import load_full_series, load_series
+from src.forecasting.train_lgbm_ensemble import train_forecast_pipeline
+from src.utils.constants import ANOMALY_TARGETS, FORECAST_TARGETS
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "outputs", "models")
 
@@ -33,7 +33,7 @@ def export_forecast_models():
 
         # Use last month as val for weight/CQR calibration
         val_start = ts.index.max() - pd.DateOffset(months=1) + pd.Timedelta(hours=1)
-        train_ts = ts.loc[:val_start - pd.Timedelta(hours=1)]
+        train_ts = ts.loc[: val_start - pd.Timedelta(hours=1)]
         val_ts = ts.loc[val_start:]
 
         val_pipe = train_forecast_pipeline(train_ts, val_ts, station_code=sc, item_code=ic)
@@ -44,7 +44,8 @@ def export_forecast_models():
         path = os.path.join(MODELS_DIR, f"forecast_{sc}_{ic}.pkl")
         joblib.dump(full_pipe, path)
         print(f"  {sc}/{name} → {path}")
-        del val_pipe, full_pipe; gc.collect()
+        del val_pipe, full_pipe
+        gc.collect()
 
 
 def export_anomaly_models():
@@ -60,7 +61,8 @@ def export_anomaly_models():
         path = os.path.join(MODELS_DIR, f"anomaly_{sc}_{ic}.pkl")
         joblib.dump(pipe, path)
         print(f"  {sc}/{name} → {path}")
-        del pipe; gc.collect()
+        del pipe
+        gc.collect()
 
 
 def main():

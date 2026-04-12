@@ -1,5 +1,5 @@
 resource "google_cloud_run_v2_service" "api" {
-  name     = "pollution-prediction-api"
+  name     = "bigquery-air-quality-forecasting-api"
   location = var.region
   project  = var.project_id
 

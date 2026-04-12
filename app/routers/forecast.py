@@ -1,9 +1,9 @@
 """Forecast prediction endpoint."""
 
-from fastapi import APIRouter, HTTPException, Request
 import pandas as pd
+from fastapi import APIRouter, HTTPException, Request
 
-from app.schemas import ForecastRequest, ForecastResponse, ForecastPoint
+from app.schemas import ForecastPoint, ForecastRequest, ForecastResponse
 from src.forecasting.train_lgbm_ensemble import predict_with_pipeline
 
 router = APIRouter()
@@ -15,13 +15,11 @@ def predict_forecast(request: Request, body: ForecastRequest):
     key = ("forecast", body.station_code, body.item_code)
 
     if key not in models:
-        available = [
-            f"{k[1]}/{k[2]}" for k in models if k[0] == "forecast"
-        ]
+        available = [f"{k[1]}/{k[2]}" for k in models if k[0] == "forecast"]
         raise HTTPException(
             status_code=404,
             detail=f"No forecast model for station {body.station_code}, "
-                   f"item_code {body.item_code}. Available: {available}",
+            f"item_code {body.item_code}. Available: {available}",
         )
 
     pipeline = models[key]

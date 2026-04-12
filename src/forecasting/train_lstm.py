@@ -11,15 +11,15 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader, Dataset
 
 from src.forecasting.features import add_fourier_features
-
 
 # ---------------------------------------------------------------------------
 # Dataset
 # ---------------------------------------------------------------------------
+
 
 class PollutionDataset(Dataset):
     """Creates (lookback_window, temporal_features, target) samples.
@@ -66,14 +66,15 @@ class PollutionDataset(Dataset):
         target = np.float32(self.series[t])
         return (
             torch.tensor(lookback).unsqueeze(-1),  # (window, 1)
-            torch.tensor(temporal),                  # (n_temporal,)
-            torch.tensor(target),                    # scalar
+            torch.tensor(temporal),  # (n_temporal,)
+            torch.tensor(target),  # scalar
         )
 
 
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
+
 
 class LSTMForecaster(nn.Module):
     """Encoder-decoder LSTM: encodes lookback window, decodes with temporal context."""
@@ -112,6 +113,7 @@ class LSTMForecaster(nn.Module):
 # ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
+
 
 def train_lstm_model(
     train_series: pd.Series,
@@ -181,9 +183,7 @@ def train_lstm_model(
         train_loss = 0.0
         n_batches = 0
         for lookback, temporal, target in train_loader:
-            lookback, temporal, target = (
-                lookback.to(device), temporal.to(device), target.to(device)
-            )
+            lookback, temporal, target = (lookback.to(device), temporal.to(device), target.to(device))
             optimizer.zero_grad()
             pred = model(lookback, temporal)
             loss = criterion(pred, target)
@@ -193,8 +193,6 @@ def train_lstm_model(
             train_loss += loss.item()
             n_batches += 1
 
-        avg_train = train_loss / max(n_batches, 1)
-
         # Validation
         if val_loader is not None:
             model.eval()
@@ -202,9 +200,7 @@ def train_lstm_model(
             n_val = 0
             with torch.no_grad():
                 for lookback, temporal, target in val_loader:
-                    lookback, temporal, target = (
-                        lookback.to(device), temporal.to(device), target.to(device)
-                    )
+                    lookback, temporal, target = (lookback.to(device), temporal.to(device), target.to(device))
                     pred = model(lookback, temporal)
                     val_loss += criterion(pred, target).item()
                     n_val += 1
@@ -242,6 +238,7 @@ def train_lstm_model(
 # ---------------------------------------------------------------------------
 # Prediction
 # ---------------------------------------------------------------------------
+
 
 def predict_lstm(
     pipeline: dict,
@@ -291,6 +288,7 @@ def predict_lstm(
 # ---------------------------------------------------------------------------
 # Full pipeline (matches interface of train_lgbm_ensemble)
 # ---------------------------------------------------------------------------
+
 
 def train_lstm_pipeline(
     train_series: pd.Series,

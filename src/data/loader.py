@@ -55,7 +55,7 @@ def load_series(
     query = f"""
         SELECT *
         FROM {BQ_TABLE_CLEAN}
-        WHERE {' AND '.join(where)}
+        WHERE {" AND ".join(where)}
         ORDER BY measurement_datetime
     """
     df = bq_to_dataframe(query)

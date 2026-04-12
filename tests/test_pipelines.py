@@ -40,7 +40,7 @@ class TestForecastFeatures:
         assert feats.shape[1] > 30  # should have many features
 
     def test_build_prediction_features(self, synthetic_series):
-        from src.forecasting.features import build_train_features, build_prediction_features
+        from src.forecasting.features import build_prediction_features, build_train_features
 
         _, context = build_train_features(synthetic_series)
         future_idx = pd.date_range("2022-03-25", periods=24, freq="h")
@@ -70,7 +70,7 @@ class TestAnomalyDetector:
         assert 0 <= pipeline["threshold"] <= 1
 
     def test_predict_anomalies(self, synthetic_anomaly_df):
-        from src.anomaly.detector import train_anomaly_pipeline, predict_anomalies
+        from src.anomaly.detector import predict_anomalies, train_anomaly_pipeline
 
         pipeline = train_anomaly_pipeline(synthetic_anomaly_df)
         result = predict_anomalies(pipeline, synthetic_anomaly_df.iloc[-100:])
@@ -85,11 +85,13 @@ class TestAnomalyDetector:
 class TestEvaluateMetrics:
     def test_rmse(self):
         from src.forecasting.evaluate import rmse
+
         assert rmse(np.array([1, 2, 3]), np.array([1, 2, 3])) == 0.0
         assert rmse(np.array([0, 0]), np.array([1, 1])) == 1.0
 
     def test_nrmse(self):
         from src.forecasting.evaluate import nrmse
+
         y = np.array([1, 2, 3, 4, 5])
         # Predicting the mean should give nRMSE ~1.0
         pred_mean = np.full(5, y.mean())
@@ -97,6 +99,7 @@ class TestEvaluateMetrics:
 
     def test_evaluate_intervals(self):
         from src.forecasting.evaluate import evaluate_intervals
+
         y = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         lower = np.array([0.5, 1.5, 2.5, 3.5, 4.5])
         upper = np.array([1.5, 2.5, 3.5, 4.5, 5.5])

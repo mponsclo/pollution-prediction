@@ -1,0 +1,21 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [
+    "*.ipynb",
+    "venv",
+    ".venv",
+    "dbt_pollution/dbt_packages",
+    "dbt_pollution/target",
+    "mlruns",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "app"]
+
+[tool.ruff.format]
+quote-style = "double"

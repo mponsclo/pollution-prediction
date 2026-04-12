@@ -14,14 +14,18 @@ class ForecastRequest(BaseModel):
     start_date: str  # YYYY-MM-DD
     end_date: str  # YYYY-MM-DD HH:MM:SS or YYYY-MM-DD
 
-    model_config = {"json_schema_extra": {
-        "examples": [{
-            "station_code": 206,
-            "item_code": 0,
-            "start_date": "2023-07-01",
-            "end_date": "2023-07-31 23:00:00",
-        }]
-    }}
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "station_code": 206,
+                    "item_code": 0,
+                    "start_date": "2023-07-01",
+                    "end_date": "2023-07-31 23:00:00",
+                }
+            ]
+        }
+    }
 
 
 class ForecastPoint(BaseModel):
@@ -47,16 +51,20 @@ class AnomalyRequest(BaseModel):
     item_code: int
     measurements: list[MeasurementInput]
 
-    model_config = {"json_schema_extra": {
-        "examples": [{
-            "station_code": 205,
-            "item_code": 0,
-            "measurements": [
-                {"datetime": "2023-11-01 00:00:00", "value": 0.003},
-                {"datetime": "2023-11-01 01:00:00", "value": 0.004},
-            ],
-        }]
-    }}
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "station_code": 205,
+                    "item_code": 0,
+                    "measurements": [
+                        {"datetime": "2023-11-01 00:00:00", "value": 0.003},
+                        {"datetime": "2023-11-01 01:00:00", "value": 0.004},
+                    ],
+                }
+            ]
+        }
+    }
 
 
 class AnomalyPoint(BaseModel):

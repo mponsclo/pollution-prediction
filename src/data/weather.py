@@ -6,6 +6,7 @@ and provides IDW-interpolated weather features per station.
 
 import os
 import time
+
 import numpy as np
 import pandas as pd
 import requests
@@ -120,7 +121,7 @@ def get_weather_for_station(
         d = np.sqrt((station_lat - point["lat"]) ** 2 + (station_lon - point["lon"]) ** 2)
         dists.append(max(d, 1e-6))
     dists = np.array(dists)
-    weights = (1.0 / dists ** 2)
+    weights = 1.0 / dists**2
     weights /= weights.sum()
 
     # Pivot weather data: one column per point per variable
@@ -158,7 +159,7 @@ def get_weather_stats_for_prediction(
         d = np.sqrt((station_lat - point["lat"]) ** 2 + (station_lon - point["lon"]) ** 2)
         dists.append(max(d, 1e-6))
     dists = np.array(dists)
-    weights = (1.0 / dists ** 2)
+    weights = 1.0 / dists**2
     weights /= weights.sum()
 
     # Compute IDW-weighted weather at this station for all historical timestamps

@@ -1,0 +1,13 @@
+# GitHub Linguist overrides — control what shows up in the language stats.
+# https://github.com/github-linguist/linguist/blob/main/docs/overrides.md
+
+# Jupyter notebooks are exploratory analysis, not production code.
+*.ipynb linguist-documentation
+
+# SQL (dbt) is a first-class language in this project.
+*.sql linguist-detectable=true
+
+# Vendored / generated — don't count towards language stats.
+dbt_pollution/dbt_packages/** linguist-vendored
+dbt_pollution/target/** linguist-generated
+mlruns/** linguist-generated

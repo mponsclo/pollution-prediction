@@ -1,8 +1,10 @@
 .PHONY: help install dbt-build train predict serve dashboard mlflow-ui log-experiments \
-       docker-build docker-run docker-compose-up docker-compose-down test clean
+       docker-build docker-run docker-compose-up docker-compose-down test lint format clean
 
 PYTHON ?= python
 PIP ?= pip
+
+.DEFAULT_GOAL := help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -42,10 +44,10 @@ mlflow-ui: ## Start MLflow UI (port 5000)
 # --- Docker ---
 
 docker-build: ## Build Docker image
-	docker build -t pollution-prediction .
+	docker build -t bigquery-air-quality-forecasting .
 
 docker-run: ## Run API container
-	docker run -p 8080:8080 pollution-prediction
+	docker run -p 8080:8080 bigquery-air-quality-forecasting
 
 docker-compose-up: ## Start all services (API + MLflow + Dashboard)
 	docker compose up -d
@@ -57,6 +59,14 @@ docker-compose-down: ## Stop all services
 
 test: ## Run tests
 	$(PYTHON) -m pytest tests/ -v
+
+lint: ## Run ruff check + format check
+	ruff check .
+	ruff format --check .
+
+format: ## Auto-fix lint issues and format code
+	ruff check --fix .
+	ruff format .
 
 clean: ## Remove caches and temp files
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

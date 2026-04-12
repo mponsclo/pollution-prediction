@@ -12,13 +12,15 @@ import pandas as pd
 from lightgbm import LGBMClassifier
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import (
-    classification_report, f1_score, precision_recall_curve,
+    classification_report,
+    f1_score,
+    precision_recall_curve,
 )
-
 
 # ---------------------------------------------------------------------------
 # Feature engineering
 # ---------------------------------------------------------------------------
+
 
 def build_anomaly_features(df: pd.DataFrame, col: str = "clean_value") -> pd.DataFrame:
     """Build rich features for anomaly detection.
@@ -51,7 +53,7 @@ def build_anomaly_features(df: pd.DataFrame, col: str = "clean_value") -> pd.Dat
 
     # --- Instrument failure signatures ---
     # Stuck sensor: consecutive identical readings
-    same = (v == v.shift(1))
+    same = v == v.shift(1)
     out["consecutive_same"] = same.groupby((~same).cumsum()).cumsum()
 
     # Flatline detection (rolling std near zero)
@@ -90,6 +92,7 @@ def _get_feature_cols(df: pd.DataFrame) -> list[str]:
 # Threshold optimization
 # ---------------------------------------------------------------------------
 
+
 def optimize_threshold_f1(y_true: np.ndarray, y_proba: np.ndarray) -> float:
     """Find the decision threshold that maximizes F1 score."""
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
@@ -102,6 +105,7 @@ def optimize_threshold_f1(y_true: np.ndarray, y_proba: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 # Temporal post-processing
 # ---------------------------------------------------------------------------
+
 
 def filter_min_run_length(preds: np.ndarray, min_length: int = 3) -> np.ndarray:
     """Remove anomaly runs shorter than min_length hours."""
@@ -127,6 +131,7 @@ def filter_min_run_length(preds: np.ndarray, min_length: int = 3) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Training pipeline
 # ---------------------------------------------------------------------------
+
 
 def train_anomaly_pipeline(
     train_df: pd.DataFrame,
@@ -181,14 +186,14 @@ def train_anomaly_pipeline(
     if val_df is not None:
         y_val = (val_df["instrument_status"] != 0).astype(int)
         val_feats_es = build_anomaly_features(val_df)
-        val_feats_es["iso_score"] = -iso.decision_function(
-            val_feats_es[iso_input_cols].fillna(0).values
-        )
+        val_feats_es["iso_score"] = -iso.decision_function(val_feats_es[iso_input_cols].fillna(0).values)
         X_val_es = val_feats_es[feat_cols].astype(float).fillna(0)
 
         import lightgbm as lgb
+
         model.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             eval_set=[(X_val_es, y_val)],
             callbacks=[lgb.early_stopping(50, verbose=False), lgb.log_evaluation(0)],
         )

@@ -1,10 +1,9 @@
 """Anomaly detection for instrument failures."""
 
-import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, f1_score
+from sklearn.preprocessing import StandardScaler
 
 
 def build_anomaly_features(df: pd.DataFrame, col: str = "clean_value") -> pd.DataFrame:
@@ -35,9 +34,9 @@ def build_anomaly_features(df: pd.DataFrame, col: str = "clean_value") -> pd.Dat
 
     # Consecutive identical readings (stuck sensor)
     out["same_as_prev"] = (values == values.shift(1)).astype(int)
-    out["consecutive_same"] = out["same_as_prev"].groupby(
-        (out["same_as_prev"] != out["same_as_prev"].shift()).cumsum()
-    ).cumsum()
+    out["consecutive_same"] = (
+        out["same_as_prev"].groupby((out["same_as_prev"] != out["same_as_prev"].shift()).cumsum()).cumsum()
+    )
 
     # Temporal context
     out["hour"] = df.index.hour
@@ -100,7 +99,7 @@ def predict_anomalies(
     labels = model.predict(X)  # 1 = normal, -1 = anomaly
 
     result = pd.DataFrame(index=clean.index)
-    result["is_anomaly"] = (labels == -1)
+    result["is_anomaly"] = labels == -1
     result["anomaly_score"] = -scores  # Higher = more anomalous
     result["predicted_status"] = result["is_anomaly"].map({True: 1, False: 0})
 

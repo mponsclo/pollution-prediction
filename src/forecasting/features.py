@@ -8,10 +8,10 @@ target datetime.
 import numpy as np
 import pandas as pd
 
-
 # ---------------------------------------------------------------------------
 # Fourier features
 # ---------------------------------------------------------------------------
+
 
 def add_fourier_features(
     index: pd.DatetimeIndex,
@@ -38,6 +38,7 @@ def add_fourier_features(
 # ---------------------------------------------------------------------------
 # Target encoding with Bayesian smoothing
 # ---------------------------------------------------------------------------
+
 
 def compute_target_encodings(
     train_series: pd.Series,
@@ -108,6 +109,7 @@ def apply_target_encodings(
 # ---------------------------------------------------------------------------
 # Anchor lags and last-window statistics
 # ---------------------------------------------------------------------------
+
 
 def compute_anchor_lags(
     train_series: pd.Series,
@@ -268,9 +270,11 @@ def get_feature_columns(df: pd.DataFrame) -> list[str]:
 # Cross-pollutant features
 # ---------------------------------------------------------------------------
 
+
 def _bq_query(query: str) -> pd.DataFrame:
     """Execute a BigQuery query and return a DataFrame with proper numeric types."""
     from src.data.loader import bq_to_dataframe
+
     return bq_to_dataframe(query)
 
 
@@ -303,9 +307,7 @@ def compute_cross_pollutant_features(
     data["measurement_datetime"] = pd.to_datetime(data["measurement_datetime"])
 
     # Pivot to wide format
-    pivot = data.pivot_table(
-        index="measurement_datetime", columns="item_code", values="clean_value"
-    )
+    pivot = data.pivot_table(index="measurement_datetime", columns="item_code", values="clean_value")
     pivot = pivot.reindex(train_index).ffill().bfill()
 
     df = pd.DataFrame(index=train_index)
@@ -364,9 +366,7 @@ def compute_cross_pollutant_for_prediction(
     """)
 
     recent["measurement_datetime"] = pd.to_datetime(recent["measurement_datetime"])
-    pivot = recent.pivot_table(
-        index="measurement_datetime", columns="item_code", values="clean_value"
-    )
+    pivot = recent.pivot_table(index="measurement_datetime", columns="item_code", values="clean_value")
 
     for ic in other_items:
         pname = ITEM_NAMES.get(ic, str(ic))
@@ -383,9 +383,9 @@ def compute_cross_pollutant_for_prediction(
 
         # Use hourly mean as rolling mean proxy for future
         if ic in hourly_stats:
-            df[f"xpol_{pname}_rmean24"] = pd.Series(
-                prediction_index.hour, index=prediction_index
-            ).map(hourly_stats[ic]).values
+            df[f"xpol_{pname}_rmean24"] = (
+                pd.Series(prediction_index.hour, index=prediction_index).map(hourly_stats[ic]).values
+            )
 
     return df
 
@@ -393,6 +393,7 @@ def compute_cross_pollutant_for_prediction(
 # ---------------------------------------------------------------------------
 # Cross-station spatial features
 # ---------------------------------------------------------------------------
+
 
 def compute_spatial_features(
     station_code: int,
@@ -419,14 +420,11 @@ def compute_spatial_features(
 
     # Compute distances, find k nearest
     other = stations[stations["station_code"] != station_code].copy()
-    other["dist"] = np.sqrt(
-        (other["latitude"] - target_lat) ** 2 +
-        (other["longitude"] - target_lon) ** 2
-    )
+    other["dist"] = np.sqrt((other["latitude"] - target_lat) ** 2 + (other["longitude"] - target_lon) ** 2)
     neighbors = other.nsmallest(k_neighbors, "dist")
     neighbor_codes = neighbors["station_code"].tolist()
     dists = neighbors["dist"].values
-    idw_weights = (1.0 / np.maximum(dists, 1e-6) ** 2)
+    idw_weights = 1.0 / np.maximum(dists, 1e-6) ** 2
     idw_weights /= idw_weights.sum()
 
     # Load neighbor series for the same pollutant
@@ -499,9 +497,7 @@ def compute_spatial_features_for_prediction(
     """)
 
     neighbor_data["measurement_datetime"] = pd.to_datetime(neighbor_data["measurement_datetime"])
-    pivot = neighbor_data.pivot_table(
-        index="measurement_datetime", columns="station_code", values="clean_value"
-    )
+    pivot = neighbor_data.pivot_table(index="measurement_datetime", columns="station_code", values="clean_value")
 
     # For future timestamps, use last known values per neighbor (grouped by hour)
     df = pd.DataFrame(index=prediction_index)

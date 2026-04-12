@@ -11,13 +11,11 @@ import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 
-from src.utils.constants import BQ_TABLE_CLEAN, ITEM_NAMES, STATUS_NORMAL
 from src.data.loader import bq_to_dataframe
 from src.forecasting.features import (
     add_fourier_features,
-    compute_target_encodings,
-    apply_target_encodings,
 )
+from src.utils.constants import BQ_TABLE_CLEAN
 
 
 def load_all_series(end_before: str | None = None) -> pd.DataFrame:
@@ -155,9 +153,11 @@ def train_global_model(
     # Optional: subsample for speed
     if max_rows and len(df) > max_rows:
         # Keep most recent data (recency > volume)
-        df = df.groupby(["station_code", "item_code"]).tail(
-            max_rows // df[["station_code", "item_code"]].drop_duplicates().shape[0]
-        ).reset_index(drop=True)
+        df = (
+            df.groupby(["station_code", "item_code"])
+            .tail(max_rows // df[["station_code", "item_code"]].drop_duplicates().shape[0])
+            .reset_index(drop=True)
+        )
 
     epoch = df["measurement_datetime"].min()
     print(f"  Building features for {len(df)} rows...")
@@ -198,7 +198,8 @@ def train_global_model(
     )
 
     model.fit(
-        X_train, y_train,
+        X_train,
+        y_train,
         eval_set=[(X_eval, y_eval)],
         callbacks=[
             lgb.early_stopping(50, verbose=False),
@@ -239,15 +240,16 @@ def predict_global(
     lat, lon = row.iloc[0]["latitude"], row.iloc[0]["longitude"]
 
     # Build a dummy df for feature generation
-    n = len(prediction_index)
-    df = pd.DataFrame({
-        "measurement_datetime": prediction_index,
-        "station_code": station_code,
-        "item_code": item_code,
-        "clean_value": 0.0,
-        "latitude": lat,
-        "longitude": lon,
-    })
+    df = pd.DataFrame(
+        {
+            "measurement_datetime": prediction_index,
+            "station_code": station_code,
+            "item_code": item_code,
+            "clean_value": 0.0,
+            "latitude": lat,
+            "longitude": lon,
+        }
+    )
 
     features = build_global_features(df, epoch)
     features = add_group_stats(features, df, stats)

@@ -51,21 +51,23 @@ def build_direct_features(train_df: pd.DataFrame, col: str = "clean_value") -> p
     df["month_cos"] = np.cos(2 * np.pi * idx.month / 12)
 
     # Historical same-hour statistics (computed from the training set)
-    hourly_stats = df.groupby("hour")[col].agg(["mean", "std", "median"]).rename(
-        columns={"mean": "hour_mean", "std": "hour_std", "median": "hour_median"}
+    hourly_stats = (
+        df.groupby("hour")[col]
+        .agg(["mean", "std", "median"])
+        .rename(columns={"mean": "hour_mean", "std": "hour_std", "median": "hour_median"})
     )
     df = df.merge(hourly_stats, left_on="hour", right_index=True, how="left")
 
     # Historical same-hour-and-dow statistics
-    hour_dow_stats = df.groupby(["hour", "day_of_week"])[col].agg(["mean", "std"]).rename(
-        columns={"mean": "hour_dow_mean", "std": "hour_dow_std"}
+    hour_dow_stats = (
+        df.groupby(["hour", "day_of_week"])[col]
+        .agg(["mean", "std"])
+        .rename(columns={"mean": "hour_dow_mean", "std": "hour_dow_std"})
     )
     df = df.merge(hour_dow_stats, left_on=["hour", "day_of_week"], right_index=True, how="left")
 
     # Historical same-month-and-hour statistics
-    month_hour_stats = df.groupby(["month", "hour"])[col].agg(["mean"]).rename(
-        columns={"mean": "month_hour_mean"}
-    )
+    month_hour_stats = df.groupby(["month", "hour"])[col].agg(["mean"]).rename(columns={"mean": "month_hour_mean"})
     df = df.merge(month_hour_stats, left_on=["month", "hour"], right_index=True, how="left")
 
     return df
@@ -74,10 +76,22 @@ def build_direct_features(train_df: pd.DataFrame, col: str = "clean_value") -> p
 def get_direct_feature_cols() -> list[str]:
     """Return feature column names for direct prediction."""
     return [
-        "hour", "day_of_week", "month", "day_of_year", "is_weekend",
-        "hour_sin", "hour_cos", "dow_sin", "dow_cos", "month_sin", "month_cos",
-        "hour_mean", "hour_std", "hour_median",
-        "hour_dow_mean", "hour_dow_std",
+        "hour",
+        "day_of_week",
+        "month",
+        "day_of_year",
+        "is_weekend",
+        "hour_sin",
+        "hour_cos",
+        "dow_sin",
+        "dow_cos",
+        "month_sin",
+        "month_cos",
+        "hour_mean",
+        "hour_std",
+        "hour_median",
+        "hour_dow_mean",
+        "hour_dow_std",
         "month_hour_mean",
     ]
 
@@ -114,7 +128,8 @@ def train_xgboost_direct(
     y_train, y_eval = y.iloc[:split_idx], y.iloc[split_idx:]
 
     model.fit(
-        X_train, y_train,
+        X_train,
+        y_train,
         eval_set=[(X_eval, y_eval)],
         verbose=False,
     )

@@ -18,7 +18,7 @@ variable "billing_account" {
 variable "github_repo" {
   description = "GitHub repository (owner/repo) for Workload Identity Federation"
   type        = string
-  default     = "mponsclo/pollution-prediction"
+  default     = "mponsclo/bigquery-air-quality-forecasting"
 }
 
 variable "collaborator_emails" {

@@ -1,7 +1,7 @@
 resource "google_artifact_registry_repository" "docker" {
-  repository_id = "pollution-prediction"
+  repository_id = "bigquery-air-quality-forecasting"
   format        = "DOCKER"
-  description   = "Docker images for the pollution-prediction API"
+  description   = "Docker images for the bigquery-air-quality-forecasting API"
   project       = var.project_id
   location      = var.region
 

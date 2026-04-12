@@ -16,8 +16,8 @@ permissions:
 
 env:
   REGION: asia-northeast3
-  AR_REPO: pollution-prediction
-  SERVICE: pollution-prediction-api
+  AR_REPO: bigquery-air-quality-forecasting
+  SERVICE: bigquery-air-quality-forecasting-api
 
 jobs:
   build-deploy:
