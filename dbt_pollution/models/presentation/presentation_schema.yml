@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: dashboard_wide
+    description: >
+      Wide-format pivot of measurements_clean for the Streamlit dashboard.
+      One row per (station_code, measurement_datetime) with one column per
+      pollutant and the worst (highest) instrument_status across pollutants.
+    columns:
+      - name: measurement_datetime
+        description: Hourly measurement timestamp
+        tests:
+          - not_null
+      - name: station_code
+        description: Monitoring station identifier (204-228)
+        tests:
+          - not_null
+      - name: latitude
+        description: Station latitude (WGS84)
+      - name: longitude
+        description: Station longitude (WGS84)
+      - name: so2_value
+        description: SO2 clean value (NULL if missing or all pollutant rows absent)
+      - name: no2_value
+        description: NO2 clean value
+      - name: o3_value
+        description: O3 clean value
+      - name: co_value
+        description: CO clean value
+      - name: pm10_value
+        description: PM10 clean value
+      - name: pm2_5_value
+        description: PM2.5 clean value
+      - name: instrument_status
+        description: >
+          Worst (highest) instrument status across the 6 pollutants for this
+          station-hour. 0=Normal, 1=Calibration, 2=Abnormal, 4=Power cut,
+          8=Under repair, 9=Abnormal data.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - measurement_datetime
+            - station_code
