@@ -7,6 +7,8 @@ The model learns transferable patterns across the entire network.
 Experiment 8.
 """
 
+import logging
+
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
@@ -16,6 +18,8 @@ from src.forecasting.features import (
     add_fourier_features,
 )
 from src.utils.constants import BQ_TABLE_CLEAN
+
+logger = logging.getLogger(__name__)
 
 
 def load_all_series(end_before: str | None = None) -> pd.DataFrame:
@@ -147,7 +151,7 @@ def train_global_model(
     max_rows: int | None = None,
 ) -> dict:
     """Train the global LightGBM model."""
-    print("  Loading all series...")
+    logger.info("Loading all series...")
     df = load_all_series(end_before)
 
     # Optional: subsample for speed
@@ -160,7 +164,7 @@ def train_global_model(
         )
 
     epoch = df["measurement_datetime"].min()
-    print(f"  Building features for {len(df)} rows...")
+    logger.info("Building features for %d rows...", len(df))
 
     # Log transform target
     y = np.log1p(df["clean_value"].values)
@@ -179,7 +183,7 @@ def train_global_model(
     X_train, X_eval = X.iloc[:split], X.iloc[split:]
     y_train, y_eval = y[:split], y[split:]
 
-    print(f"  Training LightGBM ({len(X_train)} train, {len(X_eval)} eval)...")
+    logger.info("Training LightGBM (%d train, %d eval)...", len(X_train), len(X_eval))
     import lightgbm as lgb
 
     model = LGBMRegressor(

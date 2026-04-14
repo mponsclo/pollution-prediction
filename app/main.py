@@ -7,6 +7,7 @@ Usage:
     uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 """
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +15,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.model_loader import load_models
 from app.routers import anomaly, forecast, health
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -23,7 +30,7 @@ async def lifespan(app: FastAPI):
     app.state.models = models
     n_forecast = sum(1 for k in models if k[0] == "forecast")
     n_anomaly = sum(1 for k in models if k[0] == "anomaly")
-    print(f"Loaded {n_forecast} forecast + {n_anomaly} anomaly models")
+    logger.info("Loaded %d forecast + %d anomaly models", n_forecast, n_anomaly)
     yield
 
 

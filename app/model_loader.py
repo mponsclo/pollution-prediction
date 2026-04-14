@@ -1,17 +1,20 @@
 """Load pre-trained model pipelines from disk."""
 
 import glob
+import logging
 import os
 
 import joblib
 
+logger = logging.getLogger(__name__)
 
-def load_models(models_dir: str = "outputs/models") -> dict:
+
+def load_models(models_dir: str = "outputs/models") -> dict[tuple[str, int, int], dict]:
     """Load all pickled pipelines from the models directory.
 
     Returns dict keyed by (model_type, station_code, item_code).
     """
-    pipelines = {}
+    pipelines: dict[tuple[str, int, int], dict] = {}
 
     if not os.path.isdir(models_dir):
         return pipelines
@@ -31,6 +34,6 @@ def load_models(models_dir: str = "outputs/models") -> dict:
             pipeline = joblib.load(path)
             pipelines[(model_type, station_code, item_code)] = pipeline
         except Exception as e:
-            print(f"Warning: failed to load {path}: {e}")
+            logger.warning("Failed to load %s: %s", path, e)
 
     return pipelines

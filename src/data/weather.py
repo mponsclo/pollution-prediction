@@ -4,6 +4,7 @@ Downloads hourly weather for 3 representative points in Seoul, caches to CSV,
 and provides IDW-interpolated weather features per station.
 """
 
+import logging
 import os
 import time
 
@@ -12,6 +13,8 @@ import pandas as pd
 import requests
 
 from src.utils.constants import PROJECT_ROOT
+
+logger = logging.getLogger(__name__)
 
 CACHE_PATH = os.path.join(PROJECT_ROOT, "data", "weather_cache.csv")
 
@@ -42,7 +45,7 @@ def fetch_weather(
     all_data = []
 
     for point in WEATHER_POINTS:
-        print(f"  Fetching weather for {point['name']} ({point['lat']}, {point['lon']})...")
+        logger.info("Fetching weather for %s (%s, %s)", point["name"], point["lat"], point["lon"])
 
         # Split into yearly chunks to avoid timeouts
         for year_start, year_end in [
@@ -86,11 +89,11 @@ def fetch_weather(
 
 def download_and_cache() -> pd.DataFrame:
     """Download weather data and save to CSV cache."""
-    print("Downloading weather data from Open-Meteo...")
+    logger.info("Downloading weather data from Open-Meteo...")
     df = fetch_weather()
     os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
     df.to_csv(CACHE_PATH, index=False)
-    print(f"Cached {len(df)} rows to {CACHE_PATH}")
+    logger.info("Cached %d rows to %s", len(df), CACHE_PATH)
     return df
 
 

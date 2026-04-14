@@ -5,6 +5,8 @@ features, log1p target transform, ensemble of LightGBM + Ridge + seasonal naive,
 and conformalized quantile regression for calibrated prediction intervals.
 """
 
+import logging
+
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
@@ -25,6 +27,8 @@ from src.forecasting.features import (
     compute_spatial_features_for_prediction,
     get_feature_columns,
 )
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Seasonal Naive baseline
@@ -263,7 +267,8 @@ def train_forecast_pipeline(
                     spatial_train[c] = np.log1p(spatial_train[c])
             train_feats = _add_spatial(train_feats, spatial_train)
             feat_cols = get_feature_columns(train_feats)
-        except Exception:
+        except Exception as e:
+            logger.warning("Spatial training features unavailable for station=%s item=%s: %s", station_code, item_code, e)
             spatial_ctx = None
 
     # Cross-pollutant features (NO2 only — CO↔NO2 correlation of 0.78)
@@ -276,7 +281,8 @@ def train_forecast_pipeline(
                     xpol_train[c] = np.log1p(xpol_train[c].clip(lower=0))
             train_feats = _add_spatial(train_feats, xpol_train)
             feat_cols = get_feature_columns(train_feats)
-        except Exception:
+        except Exception as e:
+            logger.warning("Cross-pollutant training features unavailable for station=%s: %s", station_code, e)
             xpol_ctx = None
 
     # Weather features
@@ -287,7 +293,8 @@ def train_forecast_pipeline(
             train_feats = _add_spatial(train_feats, weather_train)
             feat_cols = get_feature_columns(train_feats)
             weather_meta = {"lat": station_lat, "lon": station_lon}
-        except Exception:
+        except Exception as e:
+            logger.warning("Weather training features unavailable for (%s, %s): %s", station_lat, station_lon, e)
             weather_meta = None
 
     # Drop rows with NaN (from lags/rolling at start of series)
@@ -309,8 +316,8 @@ def train_forecast_pipeline(
                     if "mean" in c:
                         spatial_val[c] = np.log1p(spatial_val[c])
                 val_feats = _add_spatial(val_feats, spatial_val)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Spatial validation features failed: %s", e)
 
         if xpol_ctx is not None:
             try:
@@ -319,15 +326,15 @@ def train_forecast_pipeline(
                     if "lag" in c or "rmean" in c:
                         xpol_val[c] = np.log1p(xpol_val[c].clip(lower=0))
                 val_feats = _add_spatial(val_feats, xpol_val)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Cross-pollutant validation features failed: %s", e)
 
         if weather_meta is not None:
             try:
                 weather_val = get_weather_for_station(weather_meta["lat"], weather_meta["lon"], val_index)
                 val_feats = _add_spatial(val_feats, weather_val)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Weather validation features failed: %s", e)
 
         for c in feat_cols:
             if c not in val_feats.columns:
@@ -425,8 +432,8 @@ def predict_with_pipeline(
                 if "mean" in c:
                     spatial_pred[c] = np.log1p(spatial_pred[c])
             pred_feats = _add_spatial(pred_feats, spatial_pred)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Spatial prediction features failed: %s", e)
 
     # Cross-pollutant features
     if pipeline.get("xpol_ctx") is not None:
@@ -438,8 +445,8 @@ def predict_with_pipeline(
                 if "lag" in c or "rmean" in c:
                     xpol_pred[c] = np.log1p(xpol_pred[c].clip(lower=0))
             pred_feats = _add_spatial(pred_feats, xpol_pred)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Cross-pollutant prediction features failed: %s", e)
 
     # Weather features (use historical averages for future timestamps)
     if pipeline.get("weather_meta") is not None:
@@ -450,8 +457,8 @@ def predict_with_pipeline(
                 pipeline["weather_meta"]["lon"],
             )
             pred_feats = _add_spatial(pred_feats, weather_pred)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Weather prediction features failed: %s", e)
 
     for c in feat_cols:
         if c not in pred_feats.columns:
