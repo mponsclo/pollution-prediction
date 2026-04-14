@@ -268,7 +268,9 @@ def train_forecast_pipeline(
             train_feats = _add_spatial(train_feats, spatial_train)
             feat_cols = get_feature_columns(train_feats)
         except Exception as e:
-            logger.warning("Spatial training features unavailable for station=%s item=%s: %s", station_code, item_code, e)
+            logger.warning(
+                "Spatial training features unavailable for station=%s item=%s: %s", station_code, item_code, e
+            )
             spatial_ctx = None
 
     # Cross-pollutant features (NO2 only — CO↔NO2 correlation of 0.78)

@@ -32,8 +32,7 @@ def main() -> int:
     try:
         if not bucket.exists():
             print(
-                f"error: bucket gs://{BUCKET_NAME} does not exist. "
-                f"Run `terraform apply` first to create it.",
+                f"error: bucket gs://{BUCKET_NAME} does not exist. Run `terraform apply` first to create it.",
                 file=sys.stderr,
             )
             return 2
