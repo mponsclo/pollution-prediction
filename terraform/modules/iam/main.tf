@@ -41,14 +41,22 @@ resource "google_project_iam_member" "cloud_run" {
 # ---------------------------------------------------------------------------
 
 locals {
+  # Least-privilege roles for the CI/CD service account. Scoped to the
+  # resources each workflow step needs:
+  #   - storage.objectAdmin        -> read/write the Terraform state bucket
+  #   - artifactregistry.writer    -> push Docker images
+  #   - run.admin                  -> deploy Cloud Run revisions (supersedes run.developer)
+  #   - cloudkms.cryptoKeyDecrypter-> decrypt SOPS-encrypted tfvars
+  #   - iam.serviceAccountUser     -> impersonate cloud-run-sa during deploy
+  #   - bigquery.metadataViewer    -> terraform plan can read dataset metadata
+  # roles/viewer was removed: far broader than anything CI needs.
   github_actions_roles = [
     "roles/storage.objectAdmin",
     "roles/artifactregistry.writer",
     "roles/run.admin",
-    "roles/run.developer",
     "roles/cloudkms.cryptoKeyDecrypter",
     "roles/iam.serviceAccountUser",
-    "roles/viewer",
+    "roles/bigquery.metadataViewer",
   ]
 }
 

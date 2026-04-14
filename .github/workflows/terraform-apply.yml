@@ -46,5 +46,21 @@ jobs:
       - name: Terraform init
         run: terraform init
 
+      # Re-generate the plan against current state, then apply that exact plan.
+      # The `environment: production` gate above already requires a human
+      # reviewer to approve the job run before these steps execute.
+      - name: Terraform plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Show plan
+        run: terraform show -no-color tfplan
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          retention-days: 14
+
       - name: Terraform apply
-        run: terraform apply -auto-approve
+        run: terraform apply -input=false tfplan
