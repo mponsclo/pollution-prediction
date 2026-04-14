@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
 
 export type Target = {
   station_code: number;
@@ -22,8 +23,8 @@ export function TargetSelect({
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
 
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const [stationCode, itemCode] = e.target.value.split("-");
+  const onChange = (value: string) => {
+    const [stationCode, itemCode] = value.split("-");
     const next = new URLSearchParams(searchParams);
     next.set("station", stationCode);
     next.set("item", itemCode);
@@ -35,18 +36,27 @@ export function TargetSelect({
   return (
     <label className="flex items-center gap-2 text-[0.75rem]">
       <span className="label-eyebrow">Target</span>
-      <select
+      <ThemedSelect
+        ariaLabel="Select station and pollutant target"
         value={activeKey}
-        onChange={onChange}
         disabled={pending}
-        className="hairline bg-[var(--color-surface)] px-2 py-1 text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)]"
-      >
-        {targets.map((t) => (
-          <option key={t.key} value={t.key} className="bg-[var(--color-bg)]">
-            Station {t.station_code} · {t.item_name.toUpperCase()}
-          </option>
-        ))}
-      </select>
+        onValueChange={onChange}
+        items={targets.map((t) => ({
+          value: t.key,
+          label: (
+            <span className="flex items-center gap-2">
+              <span className="text-[var(--color-fg-muted)]">Station</span>
+              <span className="num text-[var(--color-fg)]">
+                {t.station_code}
+              </span>
+              <span className="text-[var(--color-fg-subtle)]">·</span>
+              <span className="text-[var(--color-accent)]">
+                {t.item_name.toUpperCase()}
+              </span>
+            </span>
+          ),
+        }))}
+      />
     </label>
   );
 }

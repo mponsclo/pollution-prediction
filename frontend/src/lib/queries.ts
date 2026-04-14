@@ -64,11 +64,17 @@ export async function fetchStationsLatest(args: {
 }): Promise<StationLatestRow[]> {
   const pollutant = resolvePollutant(args.pollutantCode);
   const sql = `
-    WITH windowed AS (
+    WITH stations AS (
       SELECT
         station_code,
-        latitude,
-        longitude,
+        ANY_VALUE(latitude) AS latitude,
+        ANY_VALUE(longitude) AS longitude
+      FROM ${TABLE}
+      GROUP BY station_code
+    ),
+    windowed AS (
+      SELECT
+        station_code,
         CAST(${pollutant.column} AS FLOAT64) AS value,
         instrument_status
       FROM ${TABLE}
@@ -77,8 +83,6 @@ export async function fetchStationsLatest(args: {
     agg AS (
       SELECT
         station_code,
-        ANY_VALUE(latitude) AS latitude,
-        ANY_VALUE(longitude) AS longitude,
         AVG(value) AS value,
         COUNT(value) AS record_count
       FROM windowed
@@ -94,15 +98,16 @@ export async function fetchStationsLatest(args: {
       GROUP BY station_code, instrument_status
     )
     SELECT
-      a.station_code,
-      a.latitude,
-      a.longitude,
+      s.station_code,
+      s.latitude,
+      s.longitude,
       a.value,
-      a.record_count,
+      COALESCE(a.record_count, 0) AS record_count,
       d.instrument_status AS dominant_status
-    FROM agg a
-    LEFT JOIN dominant d ON a.station_code = d.station_code AND d.rn = 1
-    ORDER BY a.station_code
+    FROM stations s
+    LEFT JOIN agg a ON s.station_code = a.station_code
+    LEFT JOIN dominant d ON s.station_code = d.station_code AND d.rn = 1
+    ORDER BY s.station_code
   `;
   return runQuery<StationLatestRow>(sql, {
     start: args.start,

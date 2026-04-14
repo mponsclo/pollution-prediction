@@ -5,60 +5,68 @@ import type { EChartsOption } from "echarts";
 import { ChartBase } from "./ChartBase";
 import type { ForecastRow } from "@/lib/predictions";
 
-type TooltipParam = {
-  axisValue: string;
-  seriesName: string;
-  data: unknown;
-};
-
-function extractNumber(data: unknown): number | null {
-  if (typeof data === "number") return data;
-  if (Array.isArray(data) && typeof data[1] === "number") return data[1];
-  return null;
+function parseTs(iso: string): number {
+  return new Date(iso.replace(" ", "T")).getTime();
 }
 
 export function ForecastBand({
   rows,
   unit,
-  label,
 }: {
   rows: ForecastRow[];
   unit: string;
-  label: string;
+  label?: string;
 }) {
   const option = useMemo<EChartsOption>(() => {
-    const times = rows.map((r) => r.measurement_datetime);
-    const values = rows.map((r) => r.predicted_value);
-    const lower = rows.map((r) => r.predicted_lower_90);
-    const upper = rows.map((r) => r.predicted_upper_90);
-    const upperDelta = rows.map((_, i) => upper[i] - lower[i]);
+    const predicted: [number, number][] = rows.map((r) => [
+      parseTs(r.measurement_datetime),
+      r.predicted_value,
+    ]);
+    const lower: [number, number][] = rows.map((r) => [
+      parseTs(r.measurement_datetime),
+      r.predicted_lower_90,
+    ]);
+    const upperDelta: [number, number][] = rows.map((r, i) => [
+      parseTs(r.measurement_datetime),
+      r.predicted_upper_90 - lower[i][1],
+    ]);
+    const tsToRow = new Map(rows.map((r) => [parseTs(r.measurement_datetime), r]));
 
     return {
-      grid: { left: 56, right: 24, top: 28, bottom: 48 },
+      grid: { left: 64, right: 24, top: 36, bottom: 64 },
       tooltip: {
         trigger: "axis",
+        confine: true,
         axisPointer: {
           type: "line",
-          lineStyle: { color: "rgba(255,255,255,0.25)", width: 1 },
+          lineStyle: { color: "rgba(255,255,255,0.3)", width: 1 },
         },
         formatter: (p: unknown) => {
-          const arr = p as TooltipParam[];
-          const axisValue = arr[0]?.axisValue ?? "";
-          const idx = times.indexOf(axisValue);
-          const predicted = extractNumber(
-            arr.find((a) => a.seriesName === "Predicted")?.data,
-          );
-          const lo = idx >= 0 ? lower[idx] : null;
-          const hi = idx >= 0 ? upper[idx] : null;
-          const fmt = (v: number | null) => (v == null ? "—" : v.toFixed(4));
-          return `<span class="num">${axisValue}</span><br/>
-            predicted: <span class="num">${fmt(predicted)}</span><br/>
-            90% interval: <span class="num">${fmt(lo)} – ${fmt(hi)}</span>`;
+          const arr = p as { axisValue: number; seriesName: string; data: [number, number] }[];
+          const ts = arr[0]?.axisValue;
+          const row = ts != null ? tsToRow.get(ts) : undefined;
+          if (!row) return "";
+          return `<span class="num">${row.measurement_datetime}</span><br/>
+            predicted: <span class="num">${row.predicted_value.toFixed(4)}</span><br/>
+            90% interval: <span class="num">${row.predicted_lower_90.toFixed(4)} – ${row.predicted_upper_90.toFixed(4)}</span><br/>
+            width: <span class="num">${(row.predicted_upper_90 - row.predicted_lower_90).toFixed(4)}</span>`;
+        },
+      },
+      legend: {
+        top: 0,
+        right: 8,
+        data: ["Predicted", "90% interval"],
+        itemWidth: 14,
+        itemHeight: 6,
+        icon: "roundRect",
+        textStyle: {
+          color: "#8a8a8a",
+          fontSize: 10,
+          fontFamily: "var(--font-jetbrains-mono), monospace",
         },
       },
       xAxis: {
-        type: "category",
-        data: times,
+        type: "time",
         axisLabel: {
           color: "#8a8a8a",
           fontSize: 10,
@@ -77,7 +85,7 @@ export function ForecastBand({
         {
           type: "slider",
           height: 18,
-          bottom: 10,
+          bottom: 12,
           backgroundColor: "rgba(255,255,255,0.02)",
           borderColor: "rgba(255,255,255,0.08)",
           fillerColor: "rgba(34,211,238,0.08)",
@@ -103,13 +111,13 @@ export function ForecastBand({
           lineStyle: { opacity: 0 },
           symbol: "none",
           stack: "interval",
-          areaStyle: { color: "rgba(34,211,238,0.14)" },
+          areaStyle: { color: "rgba(34,211,238,0.18)" },
           tooltip: { show: false },
         },
         {
           name: "Predicted",
           type: "line",
-          data: values,
+          data: predicted,
           showSymbol: false,
           smooth: false,
           lineStyle: { color: "#22d3ee", width: 1.5 },
@@ -117,28 +125,8 @@ export function ForecastBand({
           z: 10,
         },
       ],
-      legend: {
-        top: 0,
-        right: 8,
-        data: ["Predicted", "90% interval"],
-        itemWidth: 12,
-        itemHeight: 6,
-        icon: "roundRect",
-        textStyle: { color: "#8a8a8a", fontSize: 10 },
-      },
-      title: {
-        text: label,
-        left: 0,
-        top: 0,
-        textStyle: {
-          color: "#8a8a8a",
-          fontSize: 10,
-          fontWeight: "normal",
-          fontFamily: "var(--font-inter-tight), sans-serif",
-        },
-      },
     };
-  }, [rows, unit, label]);
+  }, [rows, unit]);
 
-  return <ChartBase option={option} height={420} />;
+  return <ChartBase option={option} height={440} />;
 }

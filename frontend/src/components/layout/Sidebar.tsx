@@ -9,7 +9,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hairline-r flex w-[220px] shrink-0 flex-col bg-[var(--color-bg)]">
+    <aside className="hairline-r hidden w-[220px] shrink-0 flex-col bg-[var(--color-bg)] lg:flex">
       <div className="hairline-b px-5 py-5">
         <Link href={HOME_NAV.href} className="block">
           <div className="label-eyebrow">mpc-pollution-331382</div>

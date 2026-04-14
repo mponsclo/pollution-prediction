@@ -82,11 +82,7 @@ export default async function ForecastsPage({
           action={<TargetSelect targets={targets} activeKey={`${stationCode}-${itemCode}`} />}
           contentClassName="px-3 pb-3"
         >
-          <ForecastBand
-            rows={filtered}
-            unit={unit}
-            label={`${pollutant?.label ?? current?.item_name ?? ""} (${unit})`}
-          />
+          <ForecastBand rows={filtered} unit={unit} />
         </Panel>
       </div>
 

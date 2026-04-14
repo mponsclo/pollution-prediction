@@ -123,47 +123,57 @@ export default async function StatsPage({
         <Panel
           tag="Per-station"
           title="Percentile breakdown"
-          subtitle="BigQuery APPROX_QUANTILES per station"
+          subtitle="APPROX_QUANTILES per station · max coloured when above threshold"
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-[0.78rem]">
+            <table className="w-full text-[0.8rem]">
               <thead>
-                <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-fg-muted)]">
-                  <th className="py-2 font-normal">Station</th>
-                  <th className="py-2 text-right font-normal">n</th>
-                  <th className="py-2 text-right font-normal">mean</th>
-                  <th className="py-2 text-right font-normal">std</th>
-                  <th className="py-2 text-right font-normal">p50</th>
-                  <th className="py-2 text-right font-normal">p90</th>
-                  <th className="py-2 text-right font-normal">p95</th>
-                  <th className="py-2 text-right font-normal">p99</th>
-                  <th className="py-2 text-right font-normal">max</th>
+                <tr className="border-b border-[var(--color-border-strong)] text-left">
+                  <th className="label-eyebrow px-3 py-3 font-normal">Station</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">n</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">mean</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">std</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">p50</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">p90</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">p95</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">p99</th>
+                  <th className="label-eyebrow px-3 py-3 text-right font-normal">max</th>
                 </tr>
               </thead>
               <tbody>
-                {perStation.map((r) => (
+                {perStation.map((r, idx) => (
                   <tr
                     key={r.station_code}
-                    className="border-b border-[var(--color-border)] last:border-b-0"
+                    className={`border-b border-[var(--color-border)] last:border-b-0 ${idx % 2 === 0 ? "bg-[var(--color-surface)]/40" : ""}`}
                   >
-                    <td className="py-1.5 text-[var(--color-fg)]">
-                      <span className="num">{r.station_code}</span>
+                    <td className="px-3 py-2.5">
+                      <span className="num text-[var(--color-fg)]">
+                        {r.station_code}
+                      </span>
                     </td>
-                    <td className="num py-1.5 text-right text-[var(--color-fg-muted)]">
+                    <td className="num px-3 py-2.5 text-right text-[var(--color-fg-muted)]">
                       {r.n?.toLocaleString?.() ?? "—"}
                     </td>
-                    <td className="num py-1.5 text-right">
+                    <td className="num px-3 py-2.5 text-right text-[var(--color-fg)]">
                       {Number(r.mean ?? 0).toFixed(4)}
                     </td>
-                    <td className="num py-1.5 text-right text-[var(--color-fg-muted)]">
+                    <td className="num px-3 py-2.5 text-right text-[var(--color-fg-muted)]">
                       {Number(r.stddev ?? 0).toFixed(4)}
                     </td>
-                    <td className="num py-1.5 text-right">{Number(r.p50 ?? 0).toFixed(4)}</td>
-                    <td className="num py-1.5 text-right">{Number(r.p90 ?? 0).toFixed(4)}</td>
-                    <td className="num py-1.5 text-right">{Number(r.p95 ?? 0).toFixed(4)}</td>
-                    <td className="num py-1.5 text-right">{Number(r.p99 ?? 0).toFixed(4)}</td>
+                    <td className="num px-3 py-2.5 text-right">
+                      {Number(r.p50 ?? 0).toFixed(4)}
+                    </td>
+                    <td className="num px-3 py-2.5 text-right">
+                      {Number(r.p90 ?? 0).toFixed(4)}
+                    </td>
+                    <td className="num px-3 py-2.5 text-right">
+                      {Number(r.p95 ?? 0).toFixed(4)}
+                    </td>
+                    <td className="num px-3 py-2.5 text-right">
+                      {Number(r.p99 ?? 0).toFixed(4)}
+                    </td>
                     <td
-                      className={`num py-1.5 text-right ${Number(r.max) > pollutant.threshold ? "text-[var(--color-threshold)]" : ""}`}
+                      className={`num px-3 py-2.5 text-right ${Number(r.max) > pollutant.threshold ? "font-medium text-[var(--color-threshold)]" : "text-[var(--color-fg)]"}`}
                     >
                       {Number(r.max ?? 0).toFixed(4)}
                     </td>

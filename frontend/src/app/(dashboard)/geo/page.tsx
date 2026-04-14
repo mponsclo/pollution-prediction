@@ -19,12 +19,13 @@ export default async function GeoPage({
   const pollutant = POLLUTANT_BY_CODE[params.pollutantCode]!;
 
   const withValue = rows.filter(
-    (r): r is typeof r & { value: number } => r.value != null
+    (r): r is typeof r & { value: number } => r.value != null && r.record_count > 0,
   );
   const sorted = [...withValue].sort((a, b) => b.value - a.value);
   const highest = sorted.slice(0, 5);
   const cleanest = sorted.slice(-5).reverse();
   const above = withValue.filter((r) => r.value > pollutant.threshold).length;
+  const noData = rows.length - withValue.length;
   const meanOfMeans =
     withValue.length > 0
       ? withValue.reduce((a, r) => a + r.value, 0) / withValue.length
@@ -39,7 +40,8 @@ export default async function GeoPage({
             {
               label: "With data",
               value: withValue.length.toString(),
-              tone: withValue.length === rows.length ? "success" : "default",
+              delta: noData > 0 ? `${noData} no-data` : undefined,
+              tone: noData === 0 ? "success" : "default",
             },
             {
               label: "Above threshold",
@@ -48,8 +50,8 @@ export default async function GeoPage({
               tone: above > 0 ? "threshold" : "success",
             },
             {
-              label: `Mean of means`,
-              value: meanOfMeans.toFixed(4),
+              label: "Mean of means",
+              value: withValue.length > 0 ? meanOfMeans.toFixed(4) : "—",
               delta: pollutant.unit,
             },
             {

@@ -55,5 +55,8 @@ frontend/out/
 frontend/next-env.d.ts
 frontend/*.tsbuildinfo
 
+# Root-level screenshots (Playwright / ad-hoc)
+/*.png
+
 # OS
 .DS_Store
