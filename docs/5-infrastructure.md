@@ -87,9 +87,51 @@ Only identities with `roles/cloudkms.cryptoKeyDecrypter` on the KMS key can decr
 |----------|---------|--------------|
 | `terraform-validate.yml` | PR on `terraform/**` | `terraform fmt -check` + `terraform validate` |
 | `terraform-plan.yml` | PR on `terraform/**` | Decrypts tfvars, runs plan, posts as PR comment |
-| `terraform-apply.yml` | Push to `main` on `terraform/**` | Applies with manual approval gate (GitHub Environment) |
+| `terraform-apply.yml` | Push to `main` on `terraform/**` | Plans, archives the plan artifact, applies that exact plan (manual approval gate via GitHub Environment) |
 | `docker-build-deploy.yml` | Push to `main` on `app/**`, `src/**`, `Dockerfile`, `requirements.txt` | Build → push to Artifact Registry → deploy to Cloud Run |
 | `lint.yml` | PR / push on `**.py` or `pyproject.toml` | Ruff check + format check |
+
+### Flow
+
+```
+┌─────────────────┐      ┌──────────────────────────────────┐
+│  Pull Request   │─────▶│ lint + terraform-validate + plan │
+│   (any branch)  │      │  plan output posted as a comment │
+└─────────────────┘      └──────────────────────────────────┘
+                                      │ review + merge
+                                      ▼
+┌────────────────────────────────────────────────────────────┐
+│                     Push to main                           │
+└────────────────────────────────────────────────────────────┘
+   │                                            │
+   │ terraform/** changed                       │ app/** or src/** or Dockerfile changed
+   ▼                                            ▼
+┌────────────────────────────┐      ┌──────────────────────────────────┐
+│ terraform-apply.yml        │      │ docker-build-deploy.yml          │
+│  ─ environment: production │      │  ─ build image                   │
+│    ⇒ reviewer approval     │      │  ─ push to Artifact Registry     │
+│  ─ plan → upload artifact  │      │  ─ gcloud run deploy new revision│
+│  ─ apply saved plan        │      └──────────────────────────────────┘
+└────────────────────────────┘
+```
+
+The apply workflow regenerates the plan against current state, uploads it as a 14-day retained build artifact, and applies that exact plan (instead of running a second unreviewed plan). Combined with the `environment: production` reviewer gate, this means the diff a human approves is the diff that ships.
+
+### Rollback
+
+Cloud Run keeps revision history automatically. To roll back a bad deploy:
+
+```bash
+# List revisions (most recent first)
+gcloud run revisions list --service pollution-prediction-api --region asia-northeast3
+
+# Point 100% of traffic at the previous revision
+gcloud run services update-traffic pollution-prediction-api \
+  --region asia-northeast3 \
+  --to-revisions <previous-revision-id>=100
+```
+
+For Terraform, rollbacks are recovered from the GCS-versioned state bucket: download the previous `default.tfstate` object version, re-init with it, and `terraform apply` the intended state. State lives in `gs://mpc-pollution-331382-tf-state` with object versioning enabled for exactly this purpose.
 
 ## BigQuery Billing
 

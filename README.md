@@ -49,6 +49,7 @@ End-to-end air-quality ML pipeline for **25 Seoul monitoring stations** (3 years
 | [5. Infrastructure](docs/5-infrastructure.md) | Terraform, Workload Identity Federation, SOPS/KMS, CI/CD |
 | [6. Dashboard](docs/6-dashboard.md) | Streamlit app, 6 tabs over BigQuery + predictions |
 | [7. Experiments Log](docs/7-experiments.md) | Raw journal: 9 forecasting + 2 anomaly experiments with ablation studies |
+| [8. Production Roadmap](docs/8-production-roadmap.md) | What shipped vs. what the next iteration would add (ingestion, monitoring, alerting, retraining) |
 
 **Decisions:** [decisions.md](decisions.md) — 4 architectural decision records (unpivot, direct-vs-recursive, anomaly baseline, log1p+CQR).
 
