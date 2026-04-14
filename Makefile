@@ -1,4 +1,4 @@
-.PHONY: help install dbt-build train predict serve dashboard mlflow-ui log-experiments \
+.PHONY: help install dbt-build train predict serve dashboard frontend sync-outputs mlflow-ui log-experiments \
        docker-build docker-run docker-compose-up docker-compose-down test lint format clean
 
 PYTHON ?= python
@@ -37,6 +37,12 @@ serve: ## Start FastAPI prediction server (port 8080)
 
 dashboard: ## Start Streamlit dashboard (port 8501)
 	streamlit run streamlit_air_quality_dashboard.py
+
+frontend: ## Start Next.js dashboard (port 3000, reads outputs/ locally)
+	cd frontend && PREDICTIONS_LOCAL_DIR=../outputs GCP_PROJECT_ID=mpc-pollution-331382 npm run dev
+
+sync-outputs: ## Upload prediction CSVs to the artifacts bucket
+	$(PYTHON) scripts/sync_outputs_to_gcs.py
 
 mlflow-ui: ## Start MLflow UI (port 5000)
 	mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db

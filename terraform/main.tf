@@ -24,6 +24,13 @@ module "artifact_registry" {
   region     = var.region
 }
 
+module "artifacts_bucket" {
+  source      = "./modules/artifacts_bucket"
+  project_id  = var.project_id
+  region      = var.region
+  bucket_name = "${var.project_id}-artifacts"
+}
+
 module "bigquery" {
   source     = "./modules/bigquery"
   project_id = var.project_id

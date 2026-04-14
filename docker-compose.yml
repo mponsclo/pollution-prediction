@@ -22,6 +22,8 @@ services:
       --default-artifact-root /mlflow/mlartifacts
     restart: unless-stopped
 
+  # Note: the Next.js frontend (frontend/) is not in this stack — it runs on
+  # Vercel in production and locally via `make frontend`. See frontend/README.md.
   dashboard:
     build: .
     ports:

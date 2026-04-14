@@ -37,6 +37,18 @@ resource "google_project_iam_member" "cloud_run" {
 }
 
 # ---------------------------------------------------------------------------
+# TODO: Next.js frontend SA (deferred with the Vercel auth wiring)
+#
+# When the Next.js frontend is deployed to Vercel, create `cloud-run-frontend-sa`
+# in bootstrap and grant it here (dataset-scoped, not project-wide):
+#   - google_bigquery_dataset_iam_member on `presentation` with bigquery.dataViewer
+#   - google_project_iam_member with bigquery.jobUser (required to run queries)
+#   - google_storage_bucket_iam_member on the artifacts bucket with
+#     storage.objectViewer
+# Impersonated from Vercel via the OIDC provider added to the existing WIF pool.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
 # GitHub Actions SA — CI/CD permissions
 # ---------------------------------------------------------------------------
 

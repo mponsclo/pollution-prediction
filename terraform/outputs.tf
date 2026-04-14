@@ -13,6 +13,11 @@ output "artifact_registry_url" {
   value       = module.artifact_registry.repository_url
 }
 
+output "artifacts_bucket_url" {
+  description = "GCS bucket URL for training artifacts (prediction CSVs, etc.)"
+  value       = module.artifacts_bucket.bucket_url
+}
+
 output "bigquery_datasets" {
   description = "BigQuery dataset IDs by layer"
   value       = module.bigquery.dataset_ids

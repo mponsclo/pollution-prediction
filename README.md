@@ -47,7 +47,7 @@ End-to-end air-quality ML pipeline for **25 Seoul monitoring stations** (3 years
 | [3. Anomaly Detection](docs/3-anomaly-detection.md) | Supervised LightGBM, ~80 features, XGBOD pattern, adaptive smoothing |
 | [4. API Serving](docs/4-serving.md) | FastAPI on Cloud Run, typed Pydantic schemas, live BigQuery features |
 | [5. Infrastructure](docs/5-infrastructure.md) | Terraform, Workload Identity Federation, SOPS/KMS, CI/CD |
-| [6. Dashboard](docs/6-dashboard.md) | Streamlit app, 6 tabs over BigQuery + predictions |
+| [6. Dashboard](docs/6-dashboard.md) | Streamlit app and Next.js frontend ([`frontend/`](frontend/)), 6 tabs each over BigQuery + predictions |
 | [7. Experiments Log](docs/7-experiments.md) | Raw journal: 9 forecasting + 2 anomaly experiments with ablation studies |
 | [8. Production Roadmap](docs/8-production-roadmap.md) | What shipped vs. what the next iteration would add (ingestion, monitoring, alerting, retraining) |
 
@@ -78,6 +78,7 @@ graph TB
     direction LR
     API["FastAPI on Cloud Run<br/>/health<br/>/predict/forecast<br/>/predict/anomaly"]:::compute
     Dash["Streamlit Dashboard<br/>6 tabs"]:::compute
+    Next["Next.js Dashboard<br/>ECharts + MapLibre<br/>6 tabs · Vercel"]:::compute
   end
 
   subgraph Infra["Infrastructure (Terraform)"]
@@ -102,6 +103,9 @@ graph TB
   Logic --> Dash
   Forecast --> Dash
   Anomaly --> Dash
+  Logic --> Next
+  Forecast --> Next
+  Anomaly --> Next
 
   classDef storage fill:#d6eaf8,stroke:#2e86c1,color:#1a1a1a
   classDef compute fill:#d5f5e3,stroke:#1e8449,color:#1a1a1a
@@ -197,8 +201,13 @@ make predict          # serialize pipelines to outputs/models/
 # Run API locally
 make serve            # http://localhost:8080/docs
 
-# Run dashboard (separate terminal)
+# Run Streamlit dashboard (separate terminal)
 make dashboard        # http://localhost:8501
+
+# Run Next.js dashboard (separate terminal) — visualization-as-code alternative
+cd frontend && npm install && \
+  PREDICTIONS_LOCAL_DIR=../outputs GCP_PROJECT_ID=mpc-pollution-331382 npm run dev
+# http://localhost:3000 — see frontend/README.md
 
 # Run tests
 make test             # 14 tests: API + pipelines

@@ -1,8 +1,11 @@
-# 6. Dashboard (Streamlit)
+# 6. Dashboard (Streamlit & Next.js)
 
-Interactive dashboard over BigQuery + prediction CSVs. Single-file Streamlit app with 6 tabs.
+Two dashboards ship side-by-side over the same BigQuery + prediction CSVs:
 
-Entry point: [`streamlit_air_quality_dashboard.py`](../streamlit_air_quality_dashboard.py).
+- **Streamlit** — Plotly + Folium, single-file app. Reference implementation. Entry point: [`streamlit_air_quality_dashboard.py`](../streamlit_air_quality_dashboard.py).
+- **Next.js** — Apache ECharts + MapLibre GL, typed TypeScript, visualization-as-code experiment. Entry point: [`frontend/`](../frontend/) — see [`frontend/README.md`](../frontend/README.md) for layout and env vars.
+
+Both render the same 6 tabs against `presentation.dashboard_wide` (live BigQuery) and the prediction CSVs; they are independent deployments.
 
 ## Tabs
 

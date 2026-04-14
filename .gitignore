@@ -47,5 +47,13 @@ terraform/**/*.tfstate.backup
 terraform/**/*.tfvars
 !terraform/**/*.tfvars.enc
 
+# Next.js frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.vercel/
+frontend/out/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+
 # OS
 .DS_Store

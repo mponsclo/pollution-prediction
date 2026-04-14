@@ -27,7 +27,7 @@ A third seed, `measurement_item_info.csv`, provides the pollutant reference tabl
 
 ### Presentation layer
 
-- **`dashboard_wide`** — pivots `measurements_clean` back to wide format for the Streamlit dashboard, keeping both raw and clean values per pollutant.
+- **`dashboard_wide`** — pivots `measurements_clean` back to wide format for the Streamlit and Next.js dashboards, keeping both raw and clean values per pollutant.
 
 ## Schema Routing
 
