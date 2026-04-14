@@ -5,10 +5,10 @@ from google.cloud import bigquery
 
 from src.utils.constants import BQ_PROJECT, BQ_TABLE_CLEAN, STATUS_NORMAL
 
-_client = None
+_client: bigquery.Client | None = None
 
 
-def bq_to_dataframe(query: str, client=None) -> pd.DataFrame:
+def bq_to_dataframe(query: str, client: bigquery.Client | None = None) -> pd.DataFrame:
     """Execute a BigQuery query and return a DataFrame with proper numeric types."""
     c = client or get_bq_client()
     df = c.query(query).to_dataframe()

@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import folium
 import pandas as pd
@@ -9,6 +9,8 @@ from streamlit_folium import st_folium
 
 from src.data.loader import bq_to_dataframe
 from src.utils.constants import BQ_PROJECT
+
+OUTPUTS_DIR = Path(__file__).resolve().parent / "outputs"
 
 # Configure page
 st.set_page_config(
@@ -625,8 +627,8 @@ def show_statistical_summary(filtered_df, selected_pollutant, pollutant_info):
 @st.cache_data
 def load_forecast_predictions():
     """Load pre-computed forecast predictions."""
-    path = "outputs/forecast_predictions.csv"
-    if not os.path.exists(path):
+    path = OUTPUTS_DIR / "forecast_predictions.csv"
+    if not path.exists():
         return None
     df = pd.read_csv(path)
     df["measurement_datetime"] = pd.to_datetime(df["measurement_datetime"])
@@ -636,8 +638,8 @@ def load_forecast_predictions():
 @st.cache_data
 def load_anomaly_predictions():
     """Load pre-computed anomaly predictions."""
-    path = "outputs/anomaly_predictions.csv"
-    if not os.path.exists(path):
+    path = OUTPUTS_DIR / "anomaly_predictions.csv"
+    if not path.exists():
         return None
     df = pd.read_csv(path)
     df["measurement_datetime"] = pd.to_datetime(df["measurement_datetime"])
