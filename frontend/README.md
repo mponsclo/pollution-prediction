@@ -86,7 +86,7 @@ The intended deploy path is Vercel with OIDC → GCP Workload Identity Federatio
 4. Upload current CSVs: `python scripts/sync_outputs_to_gcs.py`.
 5. Push main → Vercel auto-deploys.
 
-Step 2/3 is deferred — see the plan at `.claude/plans/magical-puzzling-breeze.md`.
+Steps 2–3 (Vercel OIDC ↔ WIF wiring) are deferred until the dashboard is promoted beyond local dev.
 
 ## Cost
 
