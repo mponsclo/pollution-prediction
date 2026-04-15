@@ -2,12 +2,12 @@
 
 Two dashboards ship side-by-side over the same BigQuery + prediction CSVs:
 
-- **Streamlit** — Plotly + Folium, single-file app. Reference implementation. Entry point: [`streamlit_air_quality_dashboard.py`](../streamlit_air_quality_dashboard.py).
+- **Streamlit** — Plotly + Folium, multi-page app (Streamlit `pages/` convention). Reference implementation. Entry point: [`dashboard/Home.py`](../dashboard/Home.py); individual pages live in [`dashboard/pages/`](../dashboard/pages/); shared widgets and data loaders in [`dashboard/components/`](../dashboard/components/) and [`dashboard/data.py`](../dashboard/data.py).
 - **Next.js** — Apache ECharts + MapLibre GL, typed TypeScript, visualization-as-code experiment. Entry point: [`frontend/`](../frontend/) — see [`frontend/README.md`](../frontend/README.md) for layout and env vars.
 
-Both render the same 6 tabs against `presentation.dashboard_wide` (live BigQuery) and the prediction CSVs; they are independent deployments.
+Both render the same 6 pages against `presentation.dashboard_wide` (live BigQuery) and the prediction CSVs; they are independent deployments.
 
-## Tabs
+## Pages
 
 1. **Time Series Analysis** — pollutant trends with instrument status overlay. Filter by station, pollutant, and date range. Status codes are color-coded (Normal green, Calibration yellow, Abnormal red, Power cut gray).
 2. **Geographic Analysis** — Folium map of all 25 stations. Bubble size = mean concentration; color = current class (WHO thresholds).
@@ -18,7 +18,7 @@ Both render the same 6 tabs against `presentation.dashboard_wide` (live BigQuery
 
 ## Data Sources
 
-- **Live queries** — [`src.data.loader.bq_to_dataframe`](../src/data/loader.py) reads `logic.measurements_clean` and `presentation.dashboard_wide` on-demand with Streamlit's `@st.cache_data` decorator (TTL 1 hour).
+- **Live queries** — [`src.data.loader.bq_to_dataframe`](../src/data/loader.py) reads `logic.measurements_clean` and `presentation.dashboard_wide` on-demand via [`dashboard/data.py`](../dashboard/data.py) with Streamlit's `@st.cache_data` decorator (TTL 1 hour).
 - **Static predictions** — `outputs/forecast_predictions.csv` and `outputs/anomaly_predictions.csv` loaded at startup.
 
 ## Running
@@ -26,10 +26,10 @@ Both render the same 6 tabs against `presentation.dashboard_wide` (live BigQuery
 ```bash
 make dashboard
 # or
-streamlit run streamlit_air_quality_dashboard.py
+PYTHONPATH=. streamlit run dashboard/Home.py
 ```
 
-Defaults to `http://localhost:8501`. Auth uses `gcloud auth application-default login` credentials.
+Defaults to `http://localhost:8501`. Auth uses `gcloud auth application-default login` credentials. `PYTHONPATH=.` is required so pages can `from src.data.loader import …` (the entry script sits under `dashboard/`, not the repo root).
 
 ## Docker
 
@@ -41,4 +41,4 @@ make docker-compose-up
 
 ## Config
 
-Sidebar controls: station selector (multi-select, 25 stations), pollutant selector (radio, 6 pollutants), date range picker. All filters propagate across tabs via `st.session_state`.
+Sidebar controls are rendered by [`dashboard/components/filters.py`](../dashboard/components/filters.py): station multi-select (25 stations), pollutant selector (6 pollutants), date range picker, hour slider, status filter. Selections persist across pages via stable widget keys (`flt_*`). Pages 5–6 (Forecasts, Anomalies) keep their own inline station/pollutant selectors since they read from CSV predictions rather than the live BigQuery table.

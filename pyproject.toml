@@ -15,7 +15,7 @@ select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src", "app"]
+known-first-party = ["src", "app", "components", "data"]
 
 [tool.ruff.format]
 quote-style = "double"

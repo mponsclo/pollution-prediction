@@ -36,7 +36,7 @@ serve: ## Start FastAPI prediction server (port 8080)
 	uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 
 dashboard: ## Start Streamlit dashboard (port 8501)
-	streamlit run streamlit_air_quality_dashboard.py
+	PYTHONPATH=. streamlit run dashboard/Home.py
 
 frontend: ## Start Next.js dashboard (port 3000, reads outputs/ locally)
 	cd frontend && PREDICTIONS_LOCAL_DIR=../outputs GCP_PROJECT_ID=mpc-pollution-331382 npm run dev

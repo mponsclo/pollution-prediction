@@ -28,11 +28,13 @@ services:
     build: .
     ports:
       - "8501:8501"
+    environment:
+      - PYTHONPATH=/app
     volumes:
-      - ./streamlit_air_quality_dashboard.py:/app/streamlit_air_quality_dashboard.py
+      - ./dashboard:/app/dashboard
       - ./outputs:/app/outputs
     command: >
-      streamlit run streamlit_air_quality_dashboard.py
+      streamlit run dashboard/Home.py
       --server.port 8501
       --server.address 0.0.0.0
       --server.headless true

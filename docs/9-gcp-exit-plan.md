@@ -81,7 +81,7 @@ R2 wins: 10 GB free storage, zero egress fee, S3-compatible API, no Cloudflare W
 
 - `src/data/loader_duckdb.py` — mirror of `loader.py`, same function signatures (`load_series`, `load_full_series`, `bq_to_dataframe`), queries via `duckdb.connect()` with `INSTALL httpfs; LOAD httpfs;` and reading parquet directly from R2 public URLs.
 - `src/utils/data_backend.py` — helper that reads `DATA_BACKEND=duckdb|bigquery` env var and returns the right loader module. Everything downstream imports through this shim.
-- `streamlit_air_quality_dashboard.py` — no changes beyond swapping `from src.data.loader import …` to `from src.utils.data_backend import loader`.
+- `dashboard/data.py` — no changes beyond swapping `from src.data.loader import …` to `from src.utils.data_backend import loader` (applies to the single import site; individual pages call into `dashboard/data.py` and don't import from `src/` directly).
 
 ### Next.js
 
@@ -142,7 +142,7 @@ R2 wins: 10 GB free storage, zero egress fee, S3-compatible API, no Cloudflare W
 - [ ] **Day 1** · Create Cloudflare R2 account + `pollution-data` bucket + public-read policy
 - [ ] **Day 2** · Write `scripts/export_bq_to_parquet.py`; run locally; verify parquet files round-trip through DuckDB with row counts matching BQ
 - [ ] **Day 3** · Write `scripts/upload_parquet_to_r2.py`; upload; verify HTTPS URLs resolve and DuckDB can query them
-- [ ] **Day 4** · Add `src/data/loader_duckdb.py` + `src/utils/data_backend.py`; swap `streamlit_air_quality_dashboard.py` imports through the shim; `DATA_BACKEND=duckdb make dashboard` shows the same numbers as BQ locally
+- [ ] **Day 4** · Add `src/data/loader_duckdb.py` + `src/utils/data_backend.py`; swap `dashboard/data.py` imports through the shim; `DATA_BACKEND=duckdb make dashboard` shows the same numbers as BQ locally
 - [ ] **Day 5** · Add `frontend/src/lib/duckdb.ts` + `backend.ts`; port SQL for DuckDB dialect; `DATA_BACKEND=duckdb npm run dev` matches BQ output
 
 ### Week 2 — deploy dashboards off GCP
