@@ -15,7 +15,8 @@ export default async function TimeSeriesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = parseDashboardParams(await searchParams);
-  const rows = await fetchTimeSeries(params);
+  const rows =
+    params.stations.length > 0 ? await fetchTimeSeries(params) : [];
   const pollutant = POLLUTANT_BY_CODE[params.pollutantCode]!;
 
   const nRows = rows.length;

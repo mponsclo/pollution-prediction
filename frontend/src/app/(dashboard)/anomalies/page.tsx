@@ -63,7 +63,7 @@ export default async function AnomaliesPage({
               label: "Window",
               value:
                 firstTs && lastTs
-                  ? `${format(parseISO(firstTs.replace(" ", "T")), "MMM d")} → ${format(parseISO(lastTs.replace(" ", "T")), "MMM d")}`
+                  ? `${format(parseISO(firstTs.replace(" ", "T")), "MMM d")} – ${format(parseISO(lastTs.replace(" ", "T")), "MMM d")}`
                   : "—",
             },
           ]}

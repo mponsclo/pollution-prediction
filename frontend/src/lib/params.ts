@@ -1,6 +1,7 @@
 import {
   DEFAULT_POLLUTANT_CODE,
   DEFAULT_RANGE,
+  DEFAULT_STATIONS,
   POLLUTANT_BY_CODE,
   STATION_CODES,
 } from "./constants";
@@ -31,19 +32,25 @@ export function parseDashboardParams(
       : DEFAULT_POLLUTANT_CODE;
 
   const stationsRaw = get("stations");
-  const stations = stationsRaw
-    ? stationsRaw
-        .split(",")
-        .map((s) => Number(s))
-        .filter((n) => STATION_CODES.includes(n))
-    : STATION_CODES;
+  let stations: number[];
+  if (stationsRaw === "none") {
+    stations = [];
+  } else if (stationsRaw) {
+    const parsed = stationsRaw
+      .split(",")
+      .map((s) => Number(s))
+      .filter((n) => STATION_CODES.includes(n));
+    stations = parsed.length > 0 ? parsed : DEFAULT_STATIONS;
+  } else {
+    stations = DEFAULT_STATIONS;
+  }
 
   const start = get("start") ?? DEFAULT_RANGE.start;
   const end = get("end") ?? DEFAULT_RANGE.end;
 
   return {
     pollutantCode,
-    stations: stations.length > 0 ? stations : STATION_CODES,
+    stations,
     start,
     end,
   };

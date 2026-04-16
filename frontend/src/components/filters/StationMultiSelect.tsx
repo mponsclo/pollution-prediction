@@ -5,17 +5,18 @@ import * as Checkbox from "@radix-ui/react-checkbox";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { STATION_CODES } from "@/lib/constants";
+import { DEFAULT_STATIONS, STATION_CODES } from "@/lib/constants";
 import { useUrlFilters } from "@/lib/url";
 import { cn } from "@/lib/cn";
 
 function parseStations(raw: string | null): number[] {
-  if (!raw) return STATION_CODES;
+  if (!raw) return DEFAULT_STATIONS;
+  if (raw === "none") return [];
   const picked = raw
     .split(",")
     .map((s) => Number(s.trim()))
     .filter((n) => STATION_CODES.includes(n));
-  return picked.length > 0 ? picked : STATION_CODES;
+  return picked.length > 0 ? picked : DEFAULT_STATIONS;
 }
 
 const PRESETS: { label: string; stations: number[] }[] = [
@@ -37,14 +38,16 @@ export function StationMultiSelect() {
   const count = selected.size;
   const total = STATION_CODES.length;
   const label =
-    count === total ? `All ${total}` : `${count} / ${total}`;
+    count === total
+      ? `All ${total}`
+      : count === 0
+        ? "None"
+        : `${count} / ${total}`;
 
   const apply = (next: Set<number>) => {
-    if (next.size === 0) return;
-    const serialized =
-      next.size === total
-        ? null
-        : Array.from(next).sort((a, b) => a - b).join(",");
+    let serialized: string | null;
+    if (next.size === 0) serialized = "none";
+    else serialized = Array.from(next).sort((a, b) => a - b).join(",");
     update({ stations: serialized });
   };
 
@@ -102,7 +105,14 @@ export function StationMultiSelect() {
             ))}
             <button
               type="button"
-              onClick={() => apply(new Set(STATION_CODES))}
+              onClick={() => apply(new Set())}
+              className="hairline bg-[var(--color-bg)] px-2 py-0.5 text-[0.68rem] text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => update({ stations: null })}
               className="ml-auto text-[0.68rem] text-[var(--color-accent)] hover:underline"
             >
               reset

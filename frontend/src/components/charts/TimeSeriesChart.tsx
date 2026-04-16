@@ -39,6 +39,19 @@ export function TimeSeriesChart({
       if (arr) arr.push([r.measurement_datetime, r.value]);
     }
 
+    /* Compute a y-axis cap at the 99th percentile so outlier spikes
+       don't crush the useful signal.  Users can still zoom in to see them. */
+    const validValues = rows
+      .map((r) => r.value)
+      .filter((v): v is number => v != null && v > 0)
+      .sort((a, b) => a - b);
+    let yMax: number | undefined;
+    if (validValues.length > 20) {
+      const p99 = validValues[Math.floor(validValues.length * 0.99)]!;
+      // Round up to a clean number and add 20 % headroom
+      yMax = Math.ceil(p99 * 1.2);
+    }
+
     const lineSeries = stations.map((code, i) => ({
       name: `Station ${code}`,
       type: "line" as const,
@@ -136,7 +149,7 @@ export function TimeSeriesChart({
         type: "value",
         name: `${pollutant?.label ?? ""} (${pollutant?.unit ?? ""})`,
         nameTextStyle: { color: "#8a8a8a", fontSize: 10, padding: [0, 0, 6, 0] },
-        scale: true,
+        ...(yMax != null ? { max: yMax } : { scale: true }),
       },
       dataZoom: [
         {

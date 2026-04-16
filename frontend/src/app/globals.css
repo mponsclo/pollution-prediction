@@ -55,6 +55,13 @@ body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-fg-muted);
+  min-width: 5.5rem;
+}
+
+@media (min-width: 640px) {
+  .label-eyebrow {
+    min-width: auto;
+  }
 }
 
 /* MapLibre popup theming */

@@ -42,6 +42,8 @@ export const DEFAULT_RANGE = {
   end: "2023-12-31T23:00:00",
 } as const;
 
+export const DEFAULT_STATIONS: number[] = [212, 213, 214, 215, 216];
+
 export const DEFAULT_POLLUTANT_CODE = 8;
 
 export type InstrumentStatus = {

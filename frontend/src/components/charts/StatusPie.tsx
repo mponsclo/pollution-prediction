@@ -25,20 +25,22 @@ export function StatusPie({
           return `${param.name}<br/><span class="num">${param.value.toLocaleString()}</span> · <span class="num">${param.percent.toFixed(1)}%</span>`;
         },
       },
+      grid: { bottom: 60 },
       legend: {
-        orient: "vertical",
-        right: 8,
-        top: "middle",
+        orient: "horizontal",
+        bottom: 0,
+        left: "center",
         textStyle: { color: "#8a8a8a", fontSize: 10 },
         itemWidth: 8,
         itemHeight: 8,
+        itemGap: 10,
         icon: "roundRect",
       },
       series: [
         {
           type: "pie",
-          radius: ["55%", "80%"],
-          center: ["32%", "50%"],
+          radius: ["40%", "62%"],
+          center: ["50%", "36%"],
           avoidLabelOverlap: true,
           label: { show: false },
           labelLine: { show: false },
@@ -61,5 +63,5 @@ export function StatusPie({
     );
   }
 
-  return <ChartBase option={option} height={200} />;
+  return <ChartBase option={option} height={260} />;
 }

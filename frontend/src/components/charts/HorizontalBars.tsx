@@ -26,7 +26,7 @@ export function HorizontalBars({
   const option = useMemo<EChartsOption>(() => {
     const sorted = [...bars].sort((a, b) => a.value - b.value);
     return {
-      grid: { left: 12, right: 40, top: 8, bottom: 24, containLabel: true },
+      grid: { left: 12, right: 60, top: 18, bottom: 24, containLabel: true },
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "shadow" },
@@ -77,6 +77,10 @@ export function HorizontalBars({
                   formatter: targetLine.label ?? `target ${targetLine.value}${unit}`,
                   color: "#ef4444",
                   fontSize: 10,
+                  position: "insideEndTop",
+                  backgroundColor: "rgba(10,10,10,0.85)",
+                  padding: [2, 4],
+                  borderRadius: 2,
                 },
                 data: [{ xAxis: targetLine.value }],
               }

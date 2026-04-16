@@ -83,7 +83,7 @@ export default async function GeoPage({
               <StationLeaderboard rows={highest} unit={pollutant.unit} />
             </Panel>
           </div>
-          <div className="bg-[var(--color-bg)] p-6 pt-3">
+          <div className="flex-1 bg-[var(--color-bg)] p-6 pt-3">
             <Panel
               tag="Bottom 5"
               title="Cleanest stations"

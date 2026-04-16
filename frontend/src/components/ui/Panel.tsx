@@ -17,8 +17,8 @@ export function Panel({
 }) {
   return (
     <div className="hairline bg-[var(--color-surface)]">
-      <div className="hairline-b flex items-start justify-between gap-4 px-5 py-3">
-        <div>
+      <div className="hairline-b flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           {tag && <div className="label-eyebrow">{tag}</div>}
           <div className="mt-0.5 text-[0.9rem] font-medium text-[var(--color-fg)]">
             {title}
