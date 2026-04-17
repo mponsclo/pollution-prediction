@@ -41,7 +41,7 @@ station_agg = (
 
 station_agg.columns = ["station_code", "latitude", "longitude", "avg_value", "record_count", "dominant_status"]
 
-station_agg = station_agg[station_agg["avg_value"] != -1]
+station_agg = station_agg[station_agg["avg_value"].notna()]
 
 if station_agg.empty:
     st.warning("No valid data available for mapping.")

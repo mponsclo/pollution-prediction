@@ -44,7 +44,7 @@ kpi4.metric("To", f"{pd.Timestamp(date_max):%Y-%m-%d}")
 st.markdown("**Average concentrations** (filtered stations / dates / hours)")
 avg_cols = st.columns(len(state.pollutant_info))
 for col, (pollutant_col, meta) in zip(avg_cols, state.pollutant_info.items()):
-    series = page_df[page_df[pollutant_col] != -1][pollutant_col]
+    series = page_df[pollutant_col].dropna()
     avg = series.mean() if not series.empty else None
     decimals = 1 if meta["unit"] == "mg/m³" else 4
     col.metric(
