@@ -71,9 +71,7 @@ def render_sidebar_filters() -> FilterState | None:
             "Start Date", value=default_start, min_value=min_date, max_value=max_date, key="flt_start_date"
         )
     with col2:
-        end_date = st.date_input(
-            "End Date", value=max_date, min_value=min_date, max_value=max_date, key="flt_end_date"
-        )
+        end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date, key="flt_end_date")
 
     st.sidebar.subheader("⏰ Time Filters")
     hours = st.sidebar.slider("Hours", 0, 23, (0, 23), help="Select hour range", key="flt_hours")
