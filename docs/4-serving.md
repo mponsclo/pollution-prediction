@@ -61,7 +61,7 @@ Pollutant item codes: SO2=0, NO2=2, CO=4, O3=5, PM10=7, PM2.5=8.
 
 [`Dockerfile`](../Dockerfile) — `python:3.12-slim` base, installs `build-essential` for LightGBM, copies `src/`, `app/`, and `outputs/models/`, exposes `8080`, starts uvicorn.
 
-Current size: pinned at `python:3.12-slim`. Model pickles are baked into the image — see [README Production Roadmap](../README.md) for how this would move to GCS in a production setup.
+Current size: pinned at `python:3.12-slim`. Model pickles are baked into the image — see [8. Production Readiness](8-production.md) for how this would move to GCS in a production setup.
 
 ## Cloud Run Configuration
 

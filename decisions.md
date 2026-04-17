@@ -58,11 +58,11 @@ Use **direct prediction** with features that require no recursive dependency: te
 ## Decision 3: Isolation Forest for anomaly detection
 
 **Date**: 2026-04-03  
-**Status**: Accepted
+**Status**: Superseded by Decision 5
 
 ### Context
 
-Target periods have no instrument_status labels. Need unsupervised detection trained on historical labeled data.
+Target periods have no instrument_status labels. The initial assumption was that detection had to be unsupervised, trained on historical data.
 
 ### Decision
 
@@ -77,6 +77,7 @@ Isolation Forest with features: z-score deviations from rolling means, rate of c
 
 - Validation F1 ranges from 0.03 to 0.67 depending on target
 - Detection rates in target periods are generally consistent with historical anomaly rates
+- Superseded once we realised `instrument_status` labels *are* available in the training history — see Decision 5.
 
 ## Decision 4: Log1p transform + CQR calibration for production forecasting
 
@@ -98,3 +99,28 @@ v2 forecasting pipeline had prediction intervals under-covering at 62-89% vs 90%
 - All 6 targets achieve >90% prediction interval coverage (93.8% average)
 - Point estimate accuracy maintained (nRMSE 0.45-0.92)
 - CQR adds negligible computational cost (a single quantile computation on calibration scores)
+
+## Decision 5: Supervised LightGBM for anomaly detection (supersedes Decision 3)
+
+**Date**: 2026-04-10  
+**Status**: Accepted
+
+### Context
+
+Decision 3 framed anomaly detection as unsupervised because the six target periods have no labels. Re-examining the data showed `instrument_status` labels *are* present for every hour of the historical training window — the only unlabeled part is the held-out target month. Framing the problem as unsupervised was the mistake, not the chosen algorithm.
+
+### Decision
+
+Train a per-series supervised LightGBM classifier on the historical labels. Features include the ~80 signals used by the Isolation Forest baseline plus the Isolation Forest anomaly score itself (XGBOD pattern). Threshold picked per target from the precision-recall curve. Post-process with a 3-hour min-run-length filter, applied only when the predicted anomaly rate exceeds 5%.
+
+### Alternatives Considered
+
+- **Stick with Isolation Forest** — ceiling at 0.31 average F1 with obvious failure modes (e.g. 224/CO where the validation month is 95% anomalous and a contamination-tuned Isolation Forest mathematically can't recover it).
+- **Residual-based with the forecasting model** — accuracy ceiling of the direct-prediction model doesn't give per-hour residuals clean enough to threshold.
+
+### Consequences
+
+- Average validation F1 jumps from 0.31 → 0.62 (+100%).
+- 224/CO F1 jumps from 0.03 → 0.96 because the labels are now available to the model.
+- Predicted probabilities stay calibrated (`scale_pos_weight` omitted), so the threshold is meaningful.
+- Isolation Forest is retained as a feature producer, not the decision model — its score is one of the inputs.
