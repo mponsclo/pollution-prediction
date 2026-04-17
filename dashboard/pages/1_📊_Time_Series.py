@@ -50,6 +50,7 @@ plot_df = filtered_df.copy()
 if not show_missing:
     plot_df = plot_df[plot_df[selected_pollutant] != -1]
 
+
 def _mode(s: pd.Series) -> str:
     m = s.mode()
     return m.iloc[0] if not m.empty else "Normal"

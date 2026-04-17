@@ -52,9 +52,7 @@ def main() -> int:
         """
     ).write_parquet(str(OUT_PATH), compression="zstd")
 
-    rows = con.sql(
-        f"SELECT COUNT(*) AS n FROM read_parquet('{OUT_PATH}')"
-    ).fetchone()[0]
+    rows = con.sql(f"SELECT COUNT(*) AS n FROM read_parquet('{OUT_PATH}')").fetchone()[0]
     size_mb = OUT_PATH.stat().st_size / 1_000_000
 
     print(f"wrote {OUT_PATH} ({rows:,} rows, {size_mb:.1f} MB)")

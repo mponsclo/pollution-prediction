@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from components.styling import apply_custom_css, apply_page_config
-from data import load_data, get_pollutant_info
+from data import get_pollutant_info, load_data
 
 apply_page_config()
 apply_custom_css()
