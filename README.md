@@ -1,5 +1,7 @@
 # Seoul Air Quality Prediction
 
+[![Demo — Next.js on Vercel](https://img.shields.io/badge/demo-Next.js%20on%20Vercel-000000.svg?logo=vercel&logoColor=white)](https://bigquery-air-quality-forecasting.vercel.app)
+[![Demo — Streamlit Cloud](https://img.shields.io/badge/demo-Streamlit%20Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://bigquery-air-quality-mpc.streamlit.app)
 [![Lint](https://github.com/mponsclo/bigquery-air-quality-forecasting/actions/workflows/lint.yml/badge.svg)](https://github.com/mponsclo/bigquery-air-quality-forecasting/actions/workflows/lint.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -11,6 +13,19 @@
 End-to-end air-quality ML pipeline for **25 Seoul monitoring stations** (3 years, **3.7M hourly records**, 6 pollutants). Data engineering with **dbt on BigQuery**, month-ahead forecasting with **LightGBM ensemble + Conformalized Quantile Regression**, anomaly detection with **supervised LightGBM** (F1 +100% vs Isolation Forest baseline), served via **FastAPI on Cloud Run**, infrastructure managed with **Terraform**, CI/CD with **GitHub Actions + SOPS/KMS**.
 
 > Built on the Schneider Electric data-science take-home dataset (Seoul air-quality, 2021-2023). Raw seed CSVs are not included (see [Data](#data)).
+
+---
+
+## Live demos
+
+| **Next.js on Vercel** | **Streamlit on Community Cloud** |
+|---|---|
+| [bigquery-air-quality-forecasting.vercel.app](https://bigquery-air-quality-forecasting.vercel.app) | [bigquery-air-quality-mpc.streamlit.app](https://bigquery-air-quality-mpc.streamlit.app) |
+| Visualization-as-code · Next.js 16 · TypeScript · ECharts · MapLibre | Reference BI-tool · Streamlit · Plotly · Folium |
+
+[![Seoul air-quality dashboards — Next.js on Vercel (left) and Streamlit Cloud (right)](docs/images/hero-dashboards.png)](https://bigquery-air-quality-forecasting.vercel.app)
+
+Two dashboards, same six panels, same data — rendered two ways. The Next.js app is an experiment in whether LLM-authored, typed, version-controlled viz code is a viable replacement for the BI-tool middle layer. Both read the same 621k-row Parquet snapshot via DuckDB (Node) and pandas (Python); set `DATA_BACKEND=bigquery` to hit BigQuery instead — see [docs/9-gcp-exit-plan.md](docs/9-gcp-exit-plan.md) for the free-tier architecture.
 
 ---
 

@@ -80,17 +80,20 @@ curl 'http://localhost:3000/api/bq/timeseries?start=2023-12-01T00:00:00&end=2023
 
 See `.env.local.example` for the full list.
 
-## Production (Vercel, not yet wired)
+## Live demo
 
-The intended deploy path is Vercel with OIDC → GCP Workload Identity Federation (zero SA keys):
+Deployed at **[bigquery-air-quality-forecasting.vercel.app](https://bigquery-air-quality-forecasting.vercel.app)** on Vercel's free tier. No GCP dependency at runtime — the serverless functions read `data/dashboard_wide.parquet` via `@duckdb/node-api` and the prediction CSVs from `data/predictions/` (both synced into the function bundle by `scripts/sync-data.mjs` on every build). See [../docs/9-gcp-exit-plan.md](../docs/9-gcp-exit-plan.md) for the free-tier architecture and [next.config.ts](next.config.ts) for the `outputFileTracingIncludes` globs that land the Parquet + libduckdb shared library in the bundle.
+
+### Switching back to BigQuery
+
+Set `DATA_BACKEND=bigquery` as a Vercel project env var. That branch still needs GCP creds at runtime — the originally-planned path was Vercel OIDC → GCP Workload Identity Federation:
 
 1. `terraform apply` creates `mpc-pollution-331382-artifacts` and the `cloud-run-frontend-sa` (dataset-scoped `roles/bigquery.dataViewer` on `presentation`, `roles/bigquery.jobUser`, `roles/storage.objectViewer` on the artifacts bucket).
 2. Add a Vercel OIDC provider to the existing WIF pool (`terraform/modules/workload_identity/`).
 3. Configure Vercel env vars: `GCP_PROJECT_ID`, `GCP_SA_EMAIL`, `GCP_WIF_PROVIDER`, `VERCEL_OIDC_AUDIENCE`.
 4. Upload current CSVs: `python scripts/sync_outputs_to_gcs.py`.
-5. Push main → Vercel auto-deploys.
 
-Steps 2–3 (Vercel OIDC ↔ WIF wiring) are deferred until the dashboard is promoted beyond local dev.
+Deferred until GCP is re-provisioned.
 
 ## Cost
 
