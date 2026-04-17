@@ -1,10 +1,19 @@
 """Compose the README hero image from two dashboard screenshots.
 
-Reads Playwright captures of the Next.js and Streamlit Statistics pages
-from the repo root and writes a side-by-side composite with a thin
-divider to `docs/images/hero-dashboards.png`.
+Stitches Playwright captures of the Next.js Time Series tab (Vercel) and
+the Streamlit Forecasts page side-by-side into a single PNG, with both
+halves forced to the exact same dimensions so neither dashboard visually
+dominates.
 
 Usage: python scripts/make_hero_image.py
+
+Source captures (live next to the output):
+  - docs/images/hero-src-vercel-timeseries.png
+  - docs/images/hero-src-streamlit-forecasts.png
+
+Both were captured at a 1440x900 Playwright viewport; the script still
+produces equal halves via resize + center-crop even if future captures
+use different dimensions.
 """
 
 from pathlib import Path
@@ -12,44 +21,51 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-LEFT_SRC = ROOT / "vercel-stats.png"
-RIGHT_SRC = ROOT / "streamlit-prod-stats.png"
-OUT = ROOT / "docs" / "images" / "hero-dashboards.png"
+IMG_DIR = ROOT / "docs" / "images"
+LEFT_SRC = IMG_DIR / "hero-src-vercel-timeseries.png"
+RIGHT_SRC = IMG_DIR / "hero-src-streamlit-forecasts.png"
+OUT = IMG_DIR / "hero-dashboards.png"
 
-# Both dashboards render on dark-ish backgrounds but not identical — use a
-# neutral dark canvas behind them so the edges blend rather than jar.
+# Per-half dimensions. 1200x750 preserves a 16:10 viewport aspect ratio
+# and gives a final ~2400 px wide image — crisp on GitHub without being
+# heavy to commit.
+HALF_W = 1200
+HALF_H = 750
+
 CANVAS_BG = (10, 10, 10)
 DIVIDER = (60, 60, 60)
 DIVIDER_PX = 2
-TARGET_HEIGHT = 900  # Shared height after resize; keeps aspect ratios.
-MAX_WIDTH = 2400  # Cap final width; keeps GitHub rendering crisp.
 
 
-def fit_to_height(img: Image.Image, height: int) -> Image.Image:
-    scale = height / img.height
-    return img.resize(
-        (round(img.width * scale), height),
-        Image.Resampling.LANCZOS,
-    )
+def fit_and_center_crop(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Aspect-preserving resize followed by center crop to exact target."""
+    src_aspect = img.width / img.height
+    tgt_aspect = target_w / target_h
+    if src_aspect > tgt_aspect:
+        # Source is wider than target — fit height first, then crop width.
+        new_h = target_h
+        new_w = round(img.width * new_h / img.height)
+    else:
+        # Source is taller/narrower — fit width first, then crop height.
+        new_w = target_w
+        new_h = round(img.height * new_w / img.width)
+    resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    left = (new_w - target_w) // 2
+    top = (new_h - target_h) // 2
+    return resized.crop((left, top, left + target_w, top + target_h))
 
 
 def main() -> int:
     if not LEFT_SRC.exists() or not RIGHT_SRC.exists():
         raise SystemExit(
             f"missing source screenshots: {LEFT_SRC.name} and/or {RIGHT_SRC.name} "
-            "must exist at the repo root (see scripts/make_hero_image.py)."
+            f"must exist under {IMG_DIR.relative_to(ROOT)}/."
         )
 
-    left = fit_to_height(Image.open(LEFT_SRC).convert("RGB"), TARGET_HEIGHT)
-    right = fit_to_height(Image.open(RIGHT_SRC).convert("RGB"), TARGET_HEIGHT)
+    left = fit_and_center_crop(Image.open(LEFT_SRC).convert("RGB"), HALF_W, HALF_H)
+    right = fit_and_center_crop(Image.open(RIGHT_SRC).convert("RGB"), HALF_W, HALF_H)
 
     total_w = left.width + DIVIDER_PX + right.width
-    if total_w > MAX_WIDTH:
-        scale = MAX_WIDTH / total_w
-        left = fit_to_height(left, round(left.height * scale))
-        right = fit_to_height(right, round(right.height * scale))
-        total_w = left.width + DIVIDER_PX + right.width
-
     canvas = Image.new("RGB", (total_w, left.height), CANVAS_BG)
     canvas.paste(left, (0, 0))
     canvas.paste(
