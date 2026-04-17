@@ -1,8 +1,8 @@
-# 8. Production Roadmap
+# 8. Production readiness
 
-What shipped vs. what the next iteration would add to turn this from a portfolio-grade pipeline into something you could reasonably page on at 3 a.m. The rest of the docs describe the system as-is; this one is deliberately forward-looking.
+A portfolio-grade pipeline isn't a production system. This doc is the honest gap between the two: what shipped, and what would have to exist before you could reasonably page on it at 3 a.m. The rest of the docs describe the system as-is; this one names what's missing.
 
-## Current state (shipped)
+## What shipped
 
 - **Reproducible data pipeline** — dbt on BigQuery, 54/54 tests, uniqueness enforced at every layer, long-format unpivot joined 1:1 with instrument status.
 - **Typed REST API** — FastAPI on Cloud Run, Pydantic schemas, 90% prediction intervals calibrated with CQR, live spatial features from BigQuery at request time.
@@ -10,7 +10,7 @@ What shipped vs. what the next iteration would add to turn this from a portfolio
 - **CI/CD with review gates** — PR-gated `terraform plan` comment, `environment: production` reviewer gate on apply, plan artifact archived for audit, CODEOWNERS on `terraform/` and `.github/workflows/`.
 - **Secrets hygiene** — `terraform.tfvars.enc` encrypted with SOPS + GCP KMS, decryptable only by identities holding `roles/cloudkms.cryptoKeyDecrypter`.
 
-## Roadmap
+## Gaps
 
 ### 1. Data ingestion
 
@@ -62,7 +62,7 @@ What shipped vs. what the next iteration would add to turn this from a portfolio
 
 ## Deliberate non-goals
 
-Items intentionally left out of this roadmap because they would complicate the system without a clear payoff at this scale:
+Items left out on purpose — they would complicate the system without a clear payoff at this scale:
 
 - **Kubernetes / GKE** — Cloud Run's scale-to-zero and autoscaling are sufficient for the traffic profile. GKE would add operational surface area for no throughput or cost benefit at <100 RPS.
 - **Feature store** — features are cheap to recompute and the cross-station spatial features are already fetched live from BigQuery. A feature store would introduce a sync problem without removing an existing one.

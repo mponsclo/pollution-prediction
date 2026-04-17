@@ -1,11 +1,13 @@
 name: Terraform Apply
 
+# Manual-trigger only: applies Terraform against the live GCP project.
+# Run on demand when infrastructure changes need to be rolled out.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "terraform/**"
-  workflow_dispatch: # Manual trigger
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "terraform/**"
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -27,7 +27,7 @@ if filtered_df.empty:
     st.warning("No data for the selected stations. Pick at least one.")
     st.stop()
 
-clean_data = filtered_df[(filtered_df[selected_pollutant] != -1) & (filtered_df["instrument_status"].notna())]
+clean_data = filtered_df[filtered_df[selected_pollutant].notna() & filtered_df["instrument_status"].notna()]
 
 if clean_data.empty:
     st.warning("No clean data available for statistical analysis.")

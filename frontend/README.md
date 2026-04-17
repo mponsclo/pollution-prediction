@@ -4,7 +4,7 @@ Visualization-as-code alternative to the Streamlit app. Same six panels over the
 
 The Streamlit app remains the reference implementation. This exists as an experiment in whether LLM-authored, typed, version-controlled viz code is a viable replacement for the BI-tool middle layer.
 
-> **Read-layer backends** — the dashboard queries are pluggable via `DATA_BACKEND` (default `parquet`). In `parquet` mode, Next.js reads `data/dashboard_wide.parquet` via `@duckdb/node-api` in server components (suitable for Vercel deploys without GCP). Set `DATA_BACKEND=bigquery` to hit BigQuery instead. See the root [README](../README.md) and [docs/9](../docs/9-gcp-exit-plan.md) for the full picture.
+> **Read-layer backends** — the dashboard queries are pluggable via `DATA_BACKEND` (default `parquet`). In `parquet` mode, Next.js reads `data/dashboard_wide.parquet` via `@duckdb/node-api` in server components (suitable for Vercel deploys without GCP). Set `DATA_BACKEND=bigquery` to hit BigQuery instead. See the root [README](../README.md) for the full picture.
 
 ## Stack
 
@@ -82,7 +82,7 @@ See `.env.local.example` for the full list.
 
 ## Live demo
 
-Deployed at **[bigquery-air-quality-forecasting.vercel.app](https://bigquery-air-quality-forecasting.vercel.app)** on Vercel's free tier. No GCP dependency at runtime — the serverless functions read `data/dashboard_wide.parquet` via `@duckdb/node-api` and the prediction CSVs from `data/predictions/` (both synced into the function bundle by `scripts/sync-data.mjs` on every build). See [../docs/9-gcp-exit-plan.md](../docs/9-gcp-exit-plan.md) for the free-tier architecture and [next.config.ts](next.config.ts) for the `outputFileTracingIncludes` globs that land the Parquet + libduckdb shared library in the bundle.
+Deployed at **[bigquery-air-quality-forecasting.vercel.app](https://bigquery-air-quality-forecasting.vercel.app)** on Vercel's free tier. No GCP dependency at runtime — the serverless functions read `data/dashboard_wide.parquet` via `@duckdb/node-api` and the prediction CSVs from `data/predictions/` (both synced into the function bundle by `scripts/sync-data.mjs` on every build). See [next.config.ts](next.config.ts) for the `outputFileTracingIncludes` globs that land the Parquet + libduckdb shared library in the bundle.
 
 ### Switching back to BigQuery
 

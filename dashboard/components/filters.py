@@ -63,16 +63,16 @@ def render_sidebar_filters() -> FilterState | None:
 
     min_date = df["date"].min()
     max_date = df["date"].max()
-    default_end = min(min_date + pd.Timedelta(days=30), max_date)
+    default_start = max(min_date, max_date - pd.Timedelta(days=30))
 
     col1, col2 = st.sidebar.columns(2)
     with col1:
         start_date = st.date_input(
-            "Start Date", value=min_date, min_value=min_date, max_value=max_date, key="flt_start_date"
+            "Start Date", value=default_start, min_value=min_date, max_value=max_date, key="flt_start_date"
         )
     with col2:
         end_date = st.date_input(
-            "End Date", value=default_end, min_value=min_date, max_value=max_date, key="flt_end_date"
+            "End Date", value=max_date, min_value=min_date, max_value=max_date, key="flt_end_date"
         )
 
     st.sidebar.subheader("⏰ Time Filters")

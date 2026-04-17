@@ -14,7 +14,7 @@ Both render the same 6 pages; they are independent deployments sharing the same 
 | Streamlit (reference BI tool) | [bigquery-air-quality-mpc.streamlit.app](https://bigquery-air-quality-mpc.streamlit.app) | Streamlit Community Cloud |
 | Next.js (viz-as-code experiment) | [bigquery-air-quality-forecasting.vercel.app](https://bigquery-air-quality-forecasting.vercel.app) | Vercel |
 
-Both default to `DATA_BACKEND=parquet`, reading [`data/dashboard_wide.parquet`](../data/dashboard_wide.parquet) (see [docs/9-gcp-exit-plan.md](9-gcp-exit-plan.md)). Flip to BigQuery with `DATA_BACKEND=bigquery` if GCP is reachable.
+Both default to `DATA_BACKEND=parquet`, reading [`data/dashboard_wide.parquet`](../data/dashboard_wide.parquet). Flip to BigQuery with `DATA_BACKEND=bigquery` if GCP is reachable.
 
 ## Pages
 

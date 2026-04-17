@@ -1,13 +1,15 @@
 name: Build & Deploy API
 
+# Manual-trigger only: deploys the FastAPI image to Cloud Run in the GCP
+# project. Run on demand when the live GCP environment is provisioned.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "src/**"
-      - "Dockerfile"
-      - "requirements.txt"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "app/**"
+  #     - "src/**"
+  #     - "Dockerfile"
+  #     - "requirements.txt"
   workflow_dispatch:
 
 permissions:

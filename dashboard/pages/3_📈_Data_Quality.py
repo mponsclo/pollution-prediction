@@ -17,13 +17,13 @@ st.header("📈 Data Quality Overview")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Missing Values by Pollutant (-1 values)")
+    st.subheader("Missing Values by Pollutant")
 
     pollutant_cols = list(pollutant_info.keys())
     missing_data = []
 
     for col in pollutant_cols:
-        missing_count = (full_df[col] == -1).sum()
+        missing_count = full_df[col].isna().sum()
         missing_pct = (missing_count / len(full_df)) * 100
         missing_data.append(
             {"Pollutant": pollutant_info[col]["name"], "Missing Count": missing_count, "Missing %": missing_pct}
@@ -77,7 +77,7 @@ monthly_stats = (
     .agg(
         {
             "instrument_status": lambda x: x.notna().sum() / len(x) * 100,
-            "so2_value": lambda x: (x != -1).sum() / len(x) * 100,
+            "so2_value": lambda x: x.notna().sum() / len(x) * 100,
         }
     )
     .reset_index()

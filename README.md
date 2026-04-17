@@ -1,7 +1,7 @@
 # Seoul Air Quality Prediction
 
-[![Demo — Next.js on Vercel](https://img.shields.io/badge/demo-Next.js%20on%20Vercel-000000.svg?logo=vercel&logoColor=white)](https://bigquery-air-quality-forecasting.vercel.app)
-[![Demo — Streamlit Cloud](https://img.shields.io/badge/demo-Streamlit%20Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://bigquery-air-quality-mpc.streamlit.app)
+[![Demo: Next.js on Vercel](https://img.shields.io/badge/demo-Next.js%20on%20Vercel-000000.svg?logo=vercel&logoColor=white)](https://bigquery-air-quality-forecasting.vercel.app)
+[![Demo: Streamlit Cloud](https://img.shields.io/badge/demo-Streamlit%20Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://bigquery-air-quality-mpc.streamlit.app)
 [![Lint](https://github.com/mponsclo/bigquery-air-quality-forecasting/actions/workflows/lint.yml/badge.svg)](https://github.com/mponsclo/bigquery-air-quality-forecasting/actions/workflows/lint.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -10,7 +10,7 @@
 [![FastAPI](https://img.shields.io/badge/serving-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![GCP](https://img.shields.io/badge/infra-GCP%20%2F%20Terraform-4285F4.svg)](https://cloud.google.com/)
 
-End-to-end air-quality ML pipeline for **25 Seoul monitoring stations** (3 years, **3.7M hourly records**, 6 pollutants). Data engineering with **dbt on BigQuery**, month-ahead forecasting with **LightGBM ensemble + Conformalized Quantile Regression**, anomaly detection with **supervised LightGBM** (F1 +100% vs Isolation Forest baseline), served via **FastAPI on Cloud Run**, infrastructure managed with **Terraform**, CI/CD with **GitHub Actions + SOPS/KMS**.
+End-to-end air-quality ML pipeline for 25 Seoul monitoring stations across 3 years, 3.7M hourly records, 6 pollutants. dbt on BigQuery for the data layer, a LightGBM ensemble with Conformalized Quantile Regression for month-ahead forecasting, and supervised LightGBM (F1 +100% over Isolation Forest) for anomaly detection. Served via FastAPI on Cloud Run; infrastructure on Terraform; CI/CD on GitHub Actions with SOPS/KMS for secrets.
 
 > Built on the Schneider Electric data-science take-home dataset (Seoul air-quality, 2021-2023). Raw seed CSVs are not included (see [Data](#data)).
 
@@ -23,9 +23,9 @@ End-to-end air-quality ML pipeline for **25 Seoul monitoring stations** (3 years
 | [bigquery-air-quality-forecasting.vercel.app](https://bigquery-air-quality-forecasting.vercel.app) | [bigquery-air-quality-mpc.streamlit.app](https://bigquery-air-quality-mpc.streamlit.app) |
 | Visualization-as-code · Next.js 16 · TypeScript · ECharts · MapLibre | Reference BI-tool · Streamlit · Plotly · Folium |
 
-[![Seoul air-quality dashboards — Next.js on Vercel (left) and Streamlit Cloud (right)](docs/images/hero-dashboards.png)](https://bigquery-air-quality-forecasting.vercel.app)
+[![Seoul air-quality dashboards: Next.js on Vercel (left) and Streamlit Cloud (right)](docs/images/hero-dashboards.png)](https://bigquery-air-quality-forecasting.vercel.app)
 
-Two dashboards, same six panels, same data — rendered two ways. The Next.js app is an experiment in whether LLM-authored, typed, version-controlled viz code is a viable replacement for the BI-tool middle layer. Both read the same 621k-row Parquet snapshot via DuckDB (Node) and pandas (Python); set `DATA_BACKEND=bigquery` to hit BigQuery instead — see [docs/9-gcp-exit-plan.md](docs/9-gcp-exit-plan.md) for the free-tier architecture.
+Two dashboards, same six panels, same data, rendered two ways. The Next.js app is an experiment in whether LLM-authored, typed, version-controlled viz code is a viable replacement for the BI-tool middle layer. Both read the same 621k-row Parquet snapshot via DuckDB (Node) and pandas (Python); set `DATA_BACKEND=bigquery` to hit BigQuery instead.
 
 ---
 
@@ -64,74 +64,50 @@ Two dashboards, same six panels, same data — rendered two ways. The Next.js ap
 | [5. Infrastructure](docs/5-infrastructure.md) | Terraform, Workload Identity Federation, SOPS/KMS, CI/CD |
 | [6. Dashboard](docs/6-dashboard.md) | Streamlit app and Next.js frontend ([`frontend/`](frontend/)), 6 tabs each over BigQuery + predictions |
 | [7. Experiments Log](docs/7-experiments.md) | Raw journal: 9 forecasting + 2 anomaly experiments with ablation studies |
-| [8. Production Roadmap](docs/8-production-roadmap.md) | What shipped vs. what the next iteration would add (ingestion, monitoring, alerting, retraining) |
-| [9. GCP Exit Plan](docs/9-gcp-exit-plan.md) | Migration plan off GCP after the free trial. **Phase 1 (read-layer) executed 2026-04-17**: both dashboards run from a committed Parquet snapshot via DuckDB by default (`DATA_BACKEND=parquet`); set `DATA_BACKEND=bigquery` to flip back to BigQuery. |
+| [8. Production Readiness](docs/8-production.md) | Honest gap between what shipped and what real production would need (ingestion, monitoring, alerting, retraining) |
 
-**Decisions:** [decisions.md](decisions.md) — 4 architectural decision records (unpivot, direct-vs-recursive, anomaly baseline, log1p+CQR).
+**Decisions:** [decisions.md](decisions.md) records 5 architectural decisions (unpivot, direct-vs-recursive, anomaly baseline, log1p+CQR, supervised anomaly switch).
 
-**Notebooks:** [`notebooks/`](notebooks/) — numbered EDA, forecasting, anomaly, and LSTM experiment notebooks.
+**Notebooks:** [`notebooks/`](notebooks/) holds the numbered EDA, forecasting, anomaly, and LSTM experiment notebooks.
 
 ---
 
 ## Architecture
 
 ```mermaid
-graph TB
-  subgraph Data["Data Layer (dbt + BigQuery)"]
+graph LR
+  Seeds[(CSV seeds<br/>3.7M rows · 25 stations)]:::storage --> Landing
+
+  subgraph dbt["dbt on BigQuery"]
     direction LR
-    Seeds["CSV Seeds<br/>measurement + instrument"]:::storage --> Landing["landing<br/><i>staging views</i>"]:::compute
-    Landing --> Logic["logic<br/>measurements_long<br/>→ _with_status<br/>→ _clean"]:::compute
-    Logic --> Presentation["presentation<br/>dashboard_wide"]:::storage
+    Landing["landing<br/><i>views</i>"]:::compute --> Logic["logic<br/><i>measurements_clean</i>"]:::compute --> Pres["presentation<br/><i>dashboard_wide</i>"]:::compute
   end
 
-  subgraph ML["ML Layer"]
-    direction LR
-    Forecast["Forecasting<br/>LightGBM + Ridge + SN<br/>log1p + CQR + spatial<br/><b>nRMSE 0.45-0.92 · PI 93%</b>"]:::ml
-    Anomaly["Anomaly Detection<br/>Supervised LightGBM<br/>~80 features + XGBOD<br/><b>F1 = 0.62 (+100% vs IF)</b>"]:::ml
+  subgraph ML["Models"]
+    direction TB
+    Forecast["Forecasting<br/>LightGBM ensemble + CQR"]:::ml
+    Anomaly["Anomaly<br/>Supervised LightGBM"]:::ml
   end
 
   subgraph Serving["Serving"]
-    direction LR
-    API["FastAPI on Cloud Run<br/>/health<br/>/predict/forecast<br/>/predict/anomaly"]:::compute
-    Dash["Streamlit Dashboard<br/>6 tabs"]:::compute
-    Next["Next.js Dashboard<br/>ECharts + MapLibre<br/>6 tabs · Vercel"]:::compute
+    direction TB
+    API["FastAPI · Cloud Run"]:::compute
+    Dash["Dashboards<br/>Streamlit · Next.js"]:::compute
   end
 
-  subgraph Infra["Infrastructure (Terraform)"]
-    direction LR
-    TF["Terraform"]:::infra --> BQ["BigQuery"]:::storage
-    TF --> CR["Cloud Run"]:::compute
-    TF --> AR["Artifact Registry"]:::storage
-    TF --> KMS["KMS + IAM + WIF"]:::infra
-  end
-
-  subgraph CICD["CI/CD (GitHub Actions)"]
-    direction LR
-    Lint["ruff lint"]:::compute
-    TFW["tf validate / plan / apply"]:::compute
-    Docker["build / push / deploy"]:::compute
-  end
-
-  Logic --> Forecast
-  Logic --> Anomaly
-  Forecast --> API
-  Anomaly --> API
-  Logic --> Dash
-  Forecast --> Dash
-  Anomaly --> Dash
-  Logic --> Next
-  Forecast --> Next
-  Anomaly --> Next
+  Logic --> Forecast & Anomaly
+  Forecast & Anomaly --> API
+  Pres --> Dash
+  Forecast & Anomaly --> Dash
 
   classDef storage fill:#d6eaf8,stroke:#2e86c1,color:#1a1a1a
   classDef compute fill:#d5f5e3,stroke:#1e8449,color:#1a1a1a
   classDef ml fill:#fdebd0,stroke:#e67e22,color:#1a1a1a
-  classDef infra fill:#e8daef,stroke:#7d3c98,color:#1a1a1a
 ```
 
-The **data layer** owns all transformations; everything downstream reads from `measurements_clean` in the `logic` dataset. The **ML layer** trains per-station, per-pollutant models (forecasting and anomaly are independent pipelines sharing the same cleaned data). The **serving layer** loads serialized pipelines at startup and exposes them through typed schemas. The **dashboard** reads directly from BigQuery + prediction CSVs.
+Three layers with one direction of travel. dbt owns the transformations and `measurements_clean` is the contract: everything downstream reads from it. Forecasting and anomaly are independent pipelines, each trained per (station, pollutant), sharing input but not weights. Both feed the API and the dashboards. Terraform provisions the BigQuery datasets, Cloud Run service, and Artifact Registry; GitHub Actions runs `terraform plan` on PRs and builds/deploys the API on merge (see [docs/5-infrastructure.md](docs/5-infrastructure.md)).
 
-> **Demo / free-tier mode**: the dashboards' read layer is pluggable via `DATA_BACKEND` (default `parquet`). In `parquet` mode, Streamlit and Next.js read [`data/dashboard_wide.parquet`](data/dashboard_wide.parquet) — a snapshot of the dbt presentation layer — via DuckDB. Set `DATA_BACKEND=bigquery` to hit BigQuery instead. The dbt pipeline, ML training (`src/`), Terraform infrastructure, and CI workflows are unchanged — they still describe the production GCP setup. See [docs/9](docs/9-gcp-exit-plan.md).
+> **Demo / free-tier mode**: the dashboards' read layer is pluggable via `DATA_BACKEND` (default `parquet`). In `parquet` mode, Streamlit and Next.js read [`data/dashboard_wide.parquet`](data/dashboard_wide.parquet) (a snapshot of the dbt presentation layer) via DuckDB. Set `DATA_BACKEND=bigquery` to hit BigQuery instead. The dbt pipeline, ML training (`src/`), Terraform infrastructure, and CI workflows are unchanged: they still describe the production GCP setup.
 
 ---
 
@@ -139,16 +115,33 @@ The **data layer** owns all transformations; everything downstream reads from `m
 
 ### Data Engineering (dbt + BigQuery)
 
-Three datasets (`landing`, `logic`, `presentation`) with staging views, intermediate enrichment, and mart tables. The key shape move is unpivoting the wide `measurement_data.csv` into long format keyed on `(measurement_datetime, station_code, item_code)` so it joins 1:1 with the instrument-status data — the obvious 2-key join fan-out to 6× the rows. See [Decision 1](decisions.md#decision-1-unpivot-measurements-to-long-format) and [docs/1](docs/1-data-pipeline.md).
+Three datasets (`landing`, `logic`, `presentation`) with staging views, intermediate enrichment, and mart tables. The key shape move is unpivoting the wide `measurement_data.csv` into long format keyed on `(measurement_datetime, station_code, item_code)` so it joins 1:1 with the instrument-status data, instead of the obvious 2-key join that fans out to 6× the rows. See [Decision 1](decisions.md#decision-1-unpivot-measurements-to-long-format) and [docs/1](docs/1-data-pipeline.md).
 
 ### Forecasting (LightGBM Ensemble + CQR)
 
-Weighted ensemble of LightGBM (direct), Ridge+Fourier, and Seasonal Naive, fit per (station, pollutant). Progression:
+Weighted ensemble of LightGBM (direct), Ridge+Fourier, and Seasonal Naive, fit per (station, pollutant). Structure:
+
+```mermaid
+flowchart LR
+  Features[("Features<br/><i>temporal · cyclical · spatial IDW</i>")]:::storage --> LGBM & Ridge & SN
+  LGBM["LightGBM<br/><i>direct, log1p</i>"]:::ml
+  Ridge["Ridge<br/><i>+ Fourier</i>"]:::ml
+  SN["Seasonal<br/>Naive"]:::ml
+  LGBM & Ridge & SN --> Blend["Weighted blend<br/><i>per-target weights</i>"]:::ml
+  Blend --> CQR["CQR calibration<br/><i>held-out residuals</i>"]:::ml
+  CQR --> Out["Point + 90% PI"]:::compute
+
+  classDef storage fill:#d6eaf8,stroke:#2e86c1,color:#1a1a1a
+  classDef ml fill:#fdebd0,stroke:#e67e22,color:#1a1a1a
+  classDef compute fill:#d5f5e3,stroke:#1e8449,color:#1a1a1a
+```
+
+Progression to the shipped pipeline:
 
 | Technique | Impact (PM10 nRMSE) |
 |-----------|---------------------|
 | Seasonal Naive baseline | 0.852 |
-| XGBoost recursive | 6-10× worse — rejected (error accumulation) |
+| XGBoost recursive | 6-10× worse; rejected for error accumulation |
 | XGBoost direct (17 features) | 0.97 |
 | LightGBM ensemble + Fourier (~55 features) | 0.52 |
 | + Log1p + CQR + spatial IDW | **0.518** (PI 93.1% vs 90% target) |
@@ -157,7 +150,7 @@ Full log in [docs/7-experiments.md](docs/7-experiments.md); deep dive in [docs/2
 
 ### Anomaly Detection (Supervised LightGBM)
 
-Baseline was unsupervised Isolation Forest (F1=0.31). Key insight: `instrument_status` labels are available in training — the problem is supervised. Switching to LightGBM classifier with ~80 features (rolling stats, flatline/spike detectors, XGBOD Isolation-Forest score as a feature) doubled average F1 to 0.62. Threshold optimized per-target via PR curve; adaptive temporal smoothing only kicks in when anomaly rate > 5%. See [docs/3-anomaly-detection.md](docs/3-anomaly-detection.md).
+Baseline was unsupervised Isolation Forest (F1=0.31). Key insight: `instrument_status` labels are available in training, so the problem is supervised. Switching to LightGBM classifier with ~80 features (rolling stats, flatline/spike detectors, XGBOD Isolation-Forest score as a feature) doubled average F1 to 0.62. Threshold optimized per-target via PR curve; adaptive temporal smoothing only kicks in when anomaly rate > 5%. See [docs/3-anomaly-detection.md](docs/3-anomaly-detection.md).
 
 ### Serving (FastAPI + Cloud Run)
 
@@ -173,27 +166,27 @@ Bootstrap (project, KMS, service accounts, WIF) + main config (BigQuery, Cloud R
 
 ### Recursive multi-step forecasting collapses over long horizons
 
-Tree-based models with lag features plus recursive prediction accumulated errors 6-10× over a 720h horizon. PM10 predictions drifted to 300-400 against actuals in [10, 200]. There is no mechanism in gradient-boosted trees to dampen feedback loops — each step's error compounds linearly in the best case, exponentially in the worst.
+Tree-based models with lag features plus recursive prediction accumulated errors 6-10× over a 720h horizon. PM10 predictions drifted to 300-400 against actuals in [10, 200]. There is no mechanism in gradient-boosted trees to dampen feedback loops; each step's error compounds linearly in the best case, exponentially in the worst.
 
-**Takeaway:** For horizons longer than ~24 steps, use direct prediction (one model per lead time, or one model with lead-time as a feature). Save recursion for sequence models with proper hidden-state memory, and even then be suspicious.
+For horizons longer than ~24 steps, use direct prediction (one model per lead time, or one model with lead-time as a feature). Save recursion for sequence models with proper hidden-state memory, and even then be suspicious.
 
 ### CQR calibrates prediction intervals without retraining
 
-The v4 ensemble had good point accuracy (nRMSE 0.45-0.92) but prediction intervals under-covered at 62-89% vs 90% target — a common failure of raw quantile regression, which has no finite-sample coverage guarantee. Conformalized Quantile Regression fixes this with a single post-hoc calibration: compute the `(1-α)`-quantile of conformity scores on a held-out set, widen intervals by that constant. All 6 targets reached >90% coverage (93.3% average) with no model changes.
+The v4 ensemble had good point accuracy (nRMSE 0.45-0.92) but prediction intervals under-covered at 62-89% vs 90% target, a common failure of raw quantile regression, which has no finite-sample coverage guarantee. Conformalized Quantile Regression fixes this with a single post-hoc calibration: compute the `(1-α)`-quantile of conformity scores on a held-out set, widen intervals by that constant. All 6 targets reached >90% coverage (93.3% average) with no model changes.
 
-**Takeaway:** If your users need *calibrated* uncertainty (decisions, alarms, budgets), add CQR on top of whatever quantile regressor you already have. Cost is negligible and the guarantee is distribution-free.
+If your users need *calibrated* uncertainty (decisions, alarms, budgets), add CQR on top of whatever quantile regressor you already have. Cost is negligible and the guarantee is distribution-free.
 
 ### Supervised anomaly detection crushes Isolation Forest when labels exist
 
-The initial design used Isolation Forest because the target periods had no labels. The error was assuming the *training* periods also had none. They did — `instrument_status` codes were sitting in the input data. Switching to a supervised LightGBM classifier doubled average F1 (0.31 → 0.62) and produced a +3197% F1 jump on station 224/CO, where the validation month was 95% anomalous (an Isolation Forest configured for 4.5% contamination mathematically cannot detect that).
+The initial design used Isolation Forest because the target periods had no labels. The error was assuming the *training* periods also had none. They did: `instrument_status` codes were sitting in the input data. Switching to a supervised LightGBM classifier doubled average F1 (0.31 → 0.62) and produced a +3197% F1 jump on station 224/CO, where the validation month was 95% anomalous (an Isolation Forest configured for 4.5% contamination mathematically cannot detect that).
 
-**Takeaway:** "Unsupervised anomaly detection" is often a premature framing. Audit the training data for any signal of the positive class before reaching for Isolation Forest or autoencoders. An XGBOD-style hybrid (unsupervised score as a feature for a supervised model) gives you both.
+"Unsupervised anomaly detection" is often a premature framing. Audit the training data for any signal of the positive class before reaching for Isolation Forest or autoencoders. An XGBOD-style hybrid (unsupervised score as a feature for a supervised model) gives you both.
 
 ### Global models underperform per-series when series are heterogeneous
 
 Experiment 8 trained a single LightGBM on all 25 stations × 6 pollutants with codes as features, hoping for cross-series transfer. It landed worse than the seasonal-naive baseline on 4/6 targets. Pollutant dynamics are too different (SO2 ppb-scale vs PM10 µg/m³-scale, diurnal vs weekly cycles) for a single tree ensemble to specialize across all of them.
 
-**Takeaway:** Global models win when series share a generating process (many users of one app, many stores of one chain). For heterogeneous targets, per-series training with shared feature code is almost always better. The "one big model" aesthetic is a trap.
+Global models win when series share a generating process (many users of one app, many stores of one chain). For heterogeneous targets, per-series training with shared feature code is almost always better. The "one big model" aesthetic is a trap.
 
 ---
 
@@ -222,10 +215,10 @@ make serve            # http://localhost:8080/docs
 # Run Streamlit dashboard (separate terminal)
 make dashboard        # http://localhost:8501
 
-# Run Next.js dashboard (separate terminal) — visualization-as-code alternative
+# Run Next.js dashboard (separate terminal): the visualization-as-code alternative
 cd frontend && npm install && \
   PREDICTIONS_LOCAL_DIR=../outputs GCP_PROJECT_ID=mpc-pollution-331382 npm run dev
-# http://localhost:3000 — see frontend/README.md
+# http://localhost:3000, see frontend/README.md
 
 # Run tests
 make test             # 14 tests: API + pipelines
@@ -284,12 +277,12 @@ Pollutant item codes: SO2=0, NO2=2, CO=4, O3=5, PM10=7, PM2.5=8.
 
 `make dashboard` (default `http://localhost:8501`). Six tabs over BigQuery + predictions:
 
-1. **Time Series** — pollutant trends with instrument status overlay
-2. **Geographic** — station map with spatial pollution patterns
-3. **Data Quality** — missing-data rates, status distributions, coverage metrics
-4. **Statistical Summary** — distributions, correlations, threshold exceedances
-5. **Forecasts** — model predictions with 90% PI bands
-6. **Anomaly Detection** — detected anomalies with probability heatmaps
+1. **Time Series**: pollutant trends with instrument status overlay
+2. **Geographic**: station map with spatial pollution patterns
+3. **Data Quality**: missing-data rates, status distributions, coverage metrics
+4. **Statistical Summary**: distributions, correlations, threshold exceedances
+5. **Forecasts**: model predictions with 90% PI bands
+6. **Anomaly Detection**: detected anomalies with probability heatmaps
 
 Details in [docs/6-dashboard.md](docs/6-dashboard.md).
 
@@ -299,9 +292,9 @@ Details in [docs/6-dashboard.md](docs/6-dashboard.md).
 
 The Schneider Electric take-home datasets are **not included** in this repository. To reproduce the pipeline, you would need:
 
-- `measurement_data.csv` — hourly pollutant measurements (wide format), 25 stations × 3 years, ~621K rows. Columns: `measurement_datetime`, `station_code`, `so2`, `no2`, `o3`, `co`, `pm10`, `pm2_5`.
-- `instrument_data.csv` — per-hour per-pollutant instrument status (long format), ~3.7M rows. Columns: `measurement_datetime`, `station_code`, `item_code`, `average_value`, `instrument_status`.
-- `measurement_item_info.csv` — pollutant reference (item code → name, unit, WHO thresholds).
+- `measurement_data.csv`: hourly pollutant measurements (wide format), 25 stations × 3 years, ~621K rows. Columns: `measurement_datetime`, `station_code`, `so2`, `no2`, `o3`, `co`, `pm10`, `pm2_5`.
+- `instrument_data.csv`: per-hour per-pollutant instrument status (long format), ~3.7M rows. Columns: `measurement_datetime`, `station_code`, `item_code`, `average_value`, `instrument_status`.
+- `measurement_item_info.csv`: pollutant reference (item code → name, unit, WHO thresholds).
 
 Status codes: `0` Normal, `1` Calibration, `2` Abnormal, `4` Power cut, `8` Under repair, `9` Abnormal data. Missing values are `-1` in raw data and become `NULL` in `clean_value`.
 
@@ -361,4 +354,4 @@ bigquery-air-quality-forecasting/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

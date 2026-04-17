@@ -48,7 +48,7 @@ st.subheader(f"{pollutant_info[selected_pollutant]['name']} Levels Over Time")
 plot_df = filtered_df.copy()
 
 if not show_missing:
-    plot_df = plot_df[plot_df[selected_pollutant] != -1]
+    plot_df = plot_df[plot_df[selected_pollutant].notna()]
 
 
 def _mode(s: pd.Series) -> str:
@@ -179,8 +179,8 @@ with col1:
     st.metric("Total Records", f"{total_records:,}")
 
 with col2:
-    missing_values = (filtered_df[selected_pollutant] == -1).sum()
-    st.metric("Missing Values (-1)", f"{missing_values:,}", delta=f"{missing_values / total_records * 100:.1f}%")
+    missing_values = filtered_df[selected_pollutant].isna().sum()
+    st.metric("Missing Values", f"{missing_values:,}", delta=f"{missing_values / total_records * 100:.1f}%")
 
 with col3:
     normal_status = (filtered_df["status_label"] == "Normal").sum()
