@@ -1,6 +1,27 @@
 # 9. GCP Exit Plan
 
-**Status**: planned, not executed. Trigger: the $300 GCP free-trial credit expires (≈90 days from project start) or financial-safety rationale kicks in sooner.
+**Status**: **Phase 1 executed** (read-layer migration, 2026-04-17). Dashboard infrastructure (BigQuery / Cloud Run / WIF) remains until full teardown.
+
+## As-built summary (Phase 1, 2026-04-17)
+
+The migration is simpler than the original R2-based plan below. User decision: commit the snapshot directly rather than host on external storage.
+
+| Originally planned | As built |
+|---|---|
+| Parquet on Cloudflare R2, DuckDB `httpfs` fetches HTTPS | Parquet committed to [`data/dashboard_wide.parquet`](../data/dashboard_wide.parquet) (~3 MB zstd); DuckDB reads local file |
+| `scripts/export_bq_to_parquet.py` (uses live BQ) | [`scripts/export_to_parquet.py`](../scripts/export_to_parquet.py) reads from `dbt_pollution/dev.duckdb` — no GCP auth |
+| `scripts/upload_parquet_to_r2.py` | Not needed — file is in the repo |
+| `src/data/loader_duckdb.py` + `src/utils/data_backend.py` shim | `dashboard/data.py` owns the switch directly; [`src/data/loader.py`](../src/data/loader.py) unchanged (kept as BQ reference) |
+| `frontend/src/lib/duckdb.ts` + `backend.ts` | [`frontend/src/lib/duck.ts`](../frontend/src/lib/duck.ts), plus [`queries/bq.ts`](../frontend/src/lib/queries/bq.ts) + [`queries/duck.ts`](../frontend/src/lib/queries/duck.ts) and a dispatcher at [`queries.ts`](../frontend/src/lib/queries.ts) |
+| Default `DATA_BACKEND=duckdb` | Default `DATA_BACKEND=parquet` (same intent — DuckDB is the engine; parquet describes the source) |
+
+Both backends coexist behind the `DATA_BACKEND` env var (user preference — not a hard removal). Prediction CSVs in [`outputs/`](../outputs/) were already repo-tracked; the Next.js build copies them into `frontend/data/predictions/` via [`frontend/scripts/sync-data.mjs`](../frontend/scripts/sync-data.mjs).
+
+Still **not executed**: Streamlit Cloud / Vercel deploys, Cloud Run teardown, `terraform destroy`, workflow `workflow_dispatch`-only annotation. The original plan below describes those steps.
+
+---
+
+**Original plan** (preserved for reference — R2-based approach described for posterity). Trigger: the $300 GCP free-trial credit expires (≈90 days from project start) or financial-safety rationale kicks in sooner.
 
 ## Context
 

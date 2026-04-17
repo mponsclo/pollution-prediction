@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
+import type { MarkLine1DDataItemOption } from "echarts/types/src/component/marker/MarkLineModel.js";
 import { ChartBase } from "./ChartBase";
 import { cn } from "@/lib/cn";
 
@@ -38,7 +39,7 @@ export function Histogram({
       return { value: [lo + width / 2, c], lo, hi };
     });
 
-    const markLines: unknown[] = [];
+    const markLines: MarkLine1DDataItemOption[] = [];
     if (threshold != null) {
       markLines.push({
         xAxis: threshold,

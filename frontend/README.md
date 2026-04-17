@@ -1,8 +1,10 @@
 # Next.js Dashboard
 
-Visualization-as-code alternative to the Streamlit app. Same six panels over the same BigQuery data and prediction CSVs, rendered with Apache ECharts + MapLibre GL instead of Plotly + Folium.
+Visualization-as-code alternative to the Streamlit app. Same six panels over the same data and prediction CSVs, rendered with Apache ECharts + MapLibre GL instead of Plotly + Folium.
 
 The Streamlit app remains the reference implementation. This exists as an experiment in whether LLM-authored, typed, version-controlled viz code is a viable replacement for the BI-tool middle layer.
+
+> **Read-layer backends** — the dashboard queries are pluggable via `DATA_BACKEND` (default `parquet`). In `parquet` mode, Next.js reads `data/dashboard_wide.parquet` via `@duckdb/node-api` in server components (suitable for Vercel deploys without GCP). Set `DATA_BACKEND=bigquery` to hit BigQuery instead. See the root [README](../README.md) and [docs/9](../docs/9-gcp-exit-plan.md) for the full picture.
 
 ## Stack
 
@@ -70,9 +72,11 @@ curl 'http://localhost:3000/api/bq/timeseries?start=2023-12-01T00:00:00&end=2023
 
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `GCP_PROJECT_ID` | `mpc-pollution-331382` | BigQuery + Storage project |
-| `PREDICTIONS_BUCKET` | `$GCP_PROJECT_ID-artifacts` | GCS bucket for CSV outputs |
-| `PREDICTIONS_LOCAL_DIR` | *(unset)* | Read CSVs from a local dir instead of GCS (dev only) |
+| `DATA_BACKEND` | `parquet` | `parquet` reads `data/dashboard_wide.parquet` via DuckDB; `bigquery` hits BQ |
+| `DUCKDB_PARQUET_PATH` | `./data/dashboard_wide.parquet` | Override the snapshot path (parquet mode only) |
+| `GCP_PROJECT_ID` | `mpc-pollution-331382` | BigQuery + Storage project (bigquery mode) |
+| `PREDICTIONS_BUCKET` | `$GCP_PROJECT_ID-artifacts` | GCS bucket for CSV outputs (bigquery mode) |
+| `PREDICTIONS_LOCAL_DIR` | `./data/predictions` (copied by `predev`/`prebuild`) | Read CSVs from a local dir instead of GCS |
 
 See `.env.local.example` for the full list.
 

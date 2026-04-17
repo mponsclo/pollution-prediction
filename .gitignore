@@ -54,6 +54,8 @@ frontend/.vercel/
 frontend/out/
 frontend/next-env.d.ts
 frontend/*.tsbuildinfo
+# Copies written by frontend/scripts/sync-data.mjs (source is repo-root data/ + outputs/)
+frontend/data/
 
 # Root-level screenshots (Playwright / ad-hoc)
 /*.png
