@@ -1,6 +1,7 @@
+import pandas as pd
 import streamlit as st
 
-from components.filters import render_sidebar_filters
+from components.filters import render_sidebar_filters, render_stations_selector
 from components.styling import apply_custom_css, apply_page_config
 
 apply_page_config()
@@ -17,24 +18,39 @@ state = render_sidebar_filters()
 if state is None:
     st.stop()
 
+all_stations = sorted(state.full_df["station_code"].unique())
+selector_col, _ = st.columns([1, 2])
+with selector_col:
+    selected_stations = render_stations_selector(all_stations)
+
+page_df = state.filtered_df[state.filtered_df["station_code"].isin(selected_stations)]
+if page_df.empty:
+    st.warning("No data for the selected stations. Pick at least one.")
+    st.stop()
+
 st.subheader("📌 At a glance")
 
-total_stations = state.filtered_df["station_code"].nunique()
-total_records = len(state.filtered_df)
-date_min = state.filtered_df["date"].min()
-date_max = state.filtered_df["date"].max()
-pollutant_meta = state.pollutant_info[state.selected_pollutant]
-valid_values = state.filtered_df[state.filtered_df[state.selected_pollutant] != -1][state.selected_pollutant]
-avg_value = valid_values.mean() if not valid_values.empty else None
+total_stations = page_df["station_code"].nunique()
+total_records = len(page_df)
+date_min = page_df["date"].min()
+date_max = page_df["date"].max()
 
 kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 kpi1.metric("Stations in view", f"{total_stations}")
 kpi2.metric("Records in view", f"{total_records:,}")
-kpi3.metric("Date range", f"{date_min} → {date_max}")
-kpi4.metric(
-    f"Avg {pollutant_meta['name']}",
-    f"{avg_value:.4f} {pollutant_meta['unit']}" if avg_value is not None else "—",
-)
+kpi3.metric("From", f"{pd.Timestamp(date_min):%Y-%m-%d}")
+kpi4.metric("To", f"{pd.Timestamp(date_max):%Y-%m-%d}")
+
+st.markdown("**Average concentrations** (filtered stations / dates / hours)")
+avg_cols = st.columns(len(state.pollutant_info))
+for col, (pollutant_col, meta) in zip(avg_cols, state.pollutant_info.items()):
+    series = page_df[page_df[pollutant_col] != -1][pollutant_col]
+    avg = series.mean() if not series.empty else None
+    decimals = 1 if meta["unit"] == "mg/m³" else 4
+    col.metric(
+        f"Avg {meta['name']} ({meta['unit']})",
+        f"{avg:.{decimals}f}" if avg is not None else "—",
+    )
 
 st.divider()
 

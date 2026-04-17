@@ -3,18 +3,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from components.filters import render_sidebar_filters
 from components.styling import apply_custom_css, apply_page_config
+from data import load_data, get_pollutant_info
 
 apply_page_config()
 apply_custom_css()
 
-state = render_sidebar_filters()
-if state is None:
-    st.stop()
-
-full_df = state.full_df
-pollutant_info = state.pollutant_info
+full_df = load_data()
+pollutant_info = get_pollutant_info()
 
 st.header("📈 Data Quality Overview")
 

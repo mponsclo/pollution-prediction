@@ -6,16 +6,48 @@ import streamlit as st
 from data import create_status_color_map, get_pollutant_info, load_data
 
 
+CENTRAL_STATIONS = [212, 214, 216]
+
+
 @dataclass(frozen=True)
 class FilterState:
-    """Filter selections applied to the full dataset, shared across pages."""
+    """Filter selections applied to the full dataset, shared across pages.
+
+    `filtered_df` is filtered by date/hour/status only — stations are picked
+    inline per page via `render_stations_selector`.
+    """
 
     full_df: pd.DataFrame
     filtered_df: pd.DataFrame
-    selected_pollutant: str
-    selected_stations: list[int]
     pollutant_info: dict
     status_colors: dict
+
+
+def render_pollutant_selector(pollutant_info: dict, key: str = "flt_pollutant", label: str = "💨 Pollutant") -> str:
+    """Inline pollutant selectbox. Call at the top of any page that needs a pollutant pick."""
+    pollutants = list(pollutant_info.keys())
+    return st.selectbox(
+        label,
+        options=pollutants,
+        format_func=lambda x: f"{pollutant_info[x]['name']} ({pollutant_info[x]['unit']})",
+        key=key,
+    )
+
+
+def render_stations_selector(
+    all_stations: list[int],
+    key: str = "flt_stations",
+    label: str = "📍 Stations",
+) -> list[int]:
+    """Inline stations multiselect. Call at the top of any page that needs a station pick."""
+    defaults = [s for s in CENTRAL_STATIONS if s in all_stations] or all_stations[:3]
+    return st.multiselect(
+        label,
+        options=all_stations,
+        default=defaults,
+        help="Choose monitoring stations to analyze",
+        key=key,
+    )
 
 
 def render_sidebar_filters() -> FilterState | None:
@@ -29,15 +61,6 @@ def render_sidebar_filters() -> FilterState | None:
     status_colors = create_status_color_map()
 
     st.sidebar.header("🔧 Filter Controls")
-
-    stations = sorted(df["station_code"].unique())
-    selected_stations = st.sidebar.multiselect(
-        "📍 Select Stations",
-        options=stations,
-        default=stations[:5],
-        help="Choose monitoring stations to analyze",
-        key="flt_stations",
-    )
 
     min_date = df["date"].min()
     max_date = df["date"].max()
@@ -56,15 +79,6 @@ def render_sidebar_filters() -> FilterState | None:
     st.sidebar.subheader("⏰ Time Filters")
     hours = st.sidebar.slider("Hours", 0, 23, (0, 23), help="Select hour range", key="flt_hours")
 
-    pollutants = list(pollutant_info.keys())
-    selected_pollutant = st.sidebar.selectbox(
-        "💨 Select Pollutant",
-        options=pollutants,
-        format_func=lambda x: f"{pollutant_info[x]['name']} ({pollutant_info[x]['unit']})",
-        help="Choose pollutant to analyze",
-        key="flt_pollutant",
-    )
-
     status_options = ["All"] + list(status_colors.keys())
     selected_status = st.sidebar.multiselect(
         "🔍 Filter by Status",
@@ -75,8 +89,7 @@ def render_sidebar_filters() -> FilterState | None:
     )
 
     filtered_df = df[
-        (df["station_code"].isin(selected_stations))
-        & (df["date"] >= start_date)
+        (df["date"] >= start_date)
         & (df["date"] <= end_date)
         & (df["hour"] >= hours[0])
         & (df["hour"] <= hours[1])
@@ -92,8 +105,6 @@ def render_sidebar_filters() -> FilterState | None:
     return FilterState(
         full_df=df,
         filtered_df=filtered_df,
-        selected_pollutant=selected_pollutant,
-        selected_stations=selected_stations,
         pollutant_info=pollutant_info,
         status_colors=status_colors,
     )

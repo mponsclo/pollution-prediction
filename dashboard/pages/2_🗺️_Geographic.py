@@ -2,7 +2,7 @@ import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
-from components.filters import render_sidebar_filters
+from components.filters import render_pollutant_selector, render_sidebar_filters, render_stations_selector
 from components.styling import apply_custom_css, apply_page_config
 
 apply_page_config()
@@ -12,11 +12,21 @@ state = render_sidebar_filters()
 if state is None:
     st.stop()
 
-filtered_df = state.filtered_df
-selected_pollutant = state.selected_pollutant
 pollutant_info = state.pollutant_info
+all_stations = sorted(state.full_df["station_code"].unique())
 
 st.header("🗺️ Geographic Analysis")
+
+top1, top2 = st.columns([2, 1])
+with top1:
+    selected_stations = render_stations_selector(all_stations)
+with top2:
+    selected_pollutant = render_pollutant_selector(pollutant_info)
+
+filtered_df = state.filtered_df[state.filtered_df["station_code"].isin(selected_stations)]
+if filtered_df.empty:
+    st.warning("No data for the selected stations. Pick at least one.")
+    st.stop()
 
 station_agg = (
     filtered_df.groupby(["station_code", "latitude", "longitude"])

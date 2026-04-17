@@ -1,7 +1,7 @@
 import plotly.express as px
 import streamlit as st
 
-from components.filters import render_sidebar_filters
+from components.filters import render_pollutant_selector, render_sidebar_filters, render_stations_selector
 from components.styling import apply_custom_css, apply_page_config
 
 apply_page_config()
@@ -11,11 +11,21 @@ state = render_sidebar_filters()
 if state is None:
     st.stop()
 
-filtered_df = state.filtered_df
-selected_pollutant = state.selected_pollutant
 pollutant_info = state.pollutant_info
+all_stations = sorted(state.full_df["station_code"].unique())
 
 st.header("📋 Statistical Summary")
+
+top1, top2 = st.columns([2, 1])
+with top1:
+    selected_stations = render_stations_selector(all_stations)
+with top2:
+    selected_pollutant = render_pollutant_selector(pollutant_info)
+
+filtered_df = state.filtered_df[state.filtered_df["station_code"].isin(selected_stations)]
+if filtered_df.empty:
+    st.warning("No data for the selected stations. Pick at least one.")
+    st.stop()
 
 clean_data = filtered_df[(filtered_df[selected_pollutant] != -1) & (filtered_df["instrument_status"].notna())]
 
@@ -64,9 +74,24 @@ with col3:
         color_discrete_sequence=["skyblue"],
     )
 
-    fig_hist.add_vline(x=threshold, line_dash="dash", line_color="red", annotation_text="Health Threshold")
+    mean_value = clean_data[selected_pollutant].mean()
     fig_hist.add_vline(
-        x=clean_data[selected_pollutant].mean(), line_dash="dash", line_color="green", annotation_text="Mean"
+        x=threshold,
+        line_dash="dash",
+        line_color="#ef4444",
+        line_width=2,
+        annotation_text="Health Threshold",
+        annotation_position="top right",
+        annotation_font_color="#ef4444",
+    )
+    fig_hist.add_vline(
+        x=mean_value,
+        line_dash="dash",
+        line_color="#f59e0b",
+        line_width=2.5,
+        annotation_text=f"Mean ({mean_value:.4f})",
+        annotation_position="top left",
+        annotation_font_color="#f59e0b",
     )
 
     fig_hist.update_layout(height=400)
