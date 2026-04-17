@@ -1,0 +1,22 @@
+# Minimal dependencies for the Streamlit dashboard when hosted on
+# Streamlit Community Cloud. The repo-root requirements.txt pulls in
+# torch, dbt, mlflow, fastapi, etc. — none of which the dashboard needs
+# — and torch alone busts the Cloud container disk limit.
+#
+# Streamlit Community Cloud auto-discovers dependency files by walking
+# up from the entrypoint (dashboard/Home.py), so this file takes
+# precedence over ../requirements.txt automatically. No UI setting
+# needed.
+
+pandas==2.3.2
+numpy==2.3.2
+pyarrow>=15.0.0
+streamlit>=1.28.0
+plotly>=5.15.0
+folium==0.20.0
+streamlit-folium>=0.13.0
+
+# Only needed when running with DATA_BACKEND=bigquery.
+# Uncomment + configure GCP creds in Streamlit secrets to re-enable.
+# google-cloud-bigquery>=3.0.0
+# db-dtypes
