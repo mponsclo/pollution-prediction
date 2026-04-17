@@ -5,7 +5,6 @@ import streamlit as st
 
 from data import create_status_color_map, get_pollutant_info, load_data
 
-
 CENTRAL_STATIONS = [212, 214, 216]
 
 
@@ -89,10 +88,7 @@ def render_sidebar_filters() -> FilterState | None:
     )
 
     filtered_df = df[
-        (df["date"] >= start_date)
-        & (df["date"] <= end_date)
-        & (df["hour"] >= hours[0])
-        & (df["hour"] <= hours[1])
+        (df["date"] >= start_date) & (df["date"] <= end_date) & (df["hour"] >= hours[0]) & (df["hour"] <= hours[1])
     ].copy()
 
     if "All" not in selected_status and selected_status:

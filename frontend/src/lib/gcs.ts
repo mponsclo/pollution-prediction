@@ -13,11 +13,22 @@ export function getStorageClient(): Storage {
   return storage;
 }
 
+function resolveLocalPredictionsDir(): string | undefined {
+  const fromEnv = process.env.PREDICTIONS_LOCAL_DIR;
+  if (fromEnv) return fromEnv;
+  // Default to the copy synced by frontend/scripts/sync-data.mjs when not in
+  // bigquery mode — keeps local dev and Vercel deploys working without GCS.
+  if (process.env.DATA_BACKEND !== "bigquery") {
+    return path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "predictions");
+  }
+  return undefined;
+}
+
 export async function downloadText(
   bucket: string,
   remotePath: string,
 ): Promise<string> {
-  const localDir = process.env.PREDICTIONS_LOCAL_DIR;
+  const localDir = resolveLocalPredictionsDir();
   if (localDir) {
     const file = path.join(
       localDir,

@@ -15,6 +15,9 @@ torch>=2.0.0
 
 # Data pipeline
 dbt-bigquery>=1.7.0
+dbt-duckdb>=1.7.0
+duckdb>=1.0.0
+pyarrow>=15.0.0
 
 # Experiment tracking
 mlflow>=2.10.0

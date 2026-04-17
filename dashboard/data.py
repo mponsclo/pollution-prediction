@@ -1,12 +1,13 @@
+import os
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from src.data.loader import bq_to_dataframe
-from src.utils.constants import BQ_PROJECT
-
-OUTPUTS_DIR = Path(__file__).resolve().parent.parent / "outputs"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+OUTPUTS_DIR = REPO_ROOT / "outputs"
+PARQUET_PATH = REPO_ROOT / "data" / "dashboard_wide.parquet"
+DATA_BACKEND = os.environ.get("DATA_BACKEND", "parquet").lower()
 
 STATUS_LABELS = {
     0: "Normal",
@@ -20,23 +21,37 @@ STATUS_LABELS = {
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
-    """Load measurements from BigQuery presentation layer with temporal features."""
-    df = bq_to_dataframe(f"""
-        SELECT
-            measurement_datetime,
-            station_code,
-            latitude,
-            longitude,
-            so2_value,
-            no2_value,
-            o3_value,
-            co_value,
-            pm10_value,
-            pm2_5_value,
-            instrument_status
-        FROM `{BQ_PROJECT}.presentation.dashboard_wide`
-        ORDER BY measurement_datetime, station_code
-    """)
+    """Load measurements from the configured backend and derive temporal features.
+
+    Selects between BigQuery and a local Parquet snapshot via the DATA_BACKEND
+    env var (default: `parquet`). The Parquet snapshot is produced by
+    `scripts/export_to_parquet.py`.
+    """
+    if DATA_BACKEND == "bigquery":
+        # Lazy-imported so free-tier deploys (Streamlit Cloud in parquet mode)
+        # don't need `src/` on PYTHONPATH or google-cloud-bigquery at import time.
+        from src.data.loader import bq_to_dataframe
+        from src.utils.constants import BQ_PROJECT
+
+        df = bq_to_dataframe(f"""
+            SELECT
+                measurement_datetime,
+                station_code,
+                latitude,
+                longitude,
+                so2_value,
+                no2_value,
+                o3_value,
+                co_value,
+                pm10_value,
+                pm2_5_value,
+                instrument_status
+            FROM `{BQ_PROJECT}.presentation.dashboard_wide`
+            ORDER BY measurement_datetime, station_code
+        """)
+    else:
+        df = pd.read_parquet(PARQUET_PATH)
+        df["measurement_datetime"] = pd.to_datetime(df["measurement_datetime"])
 
     df["year"] = df["measurement_datetime"].dt.year
     df["month"] = df["measurement_datetime"].dt.month

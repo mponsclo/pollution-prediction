@@ -50,7 +50,7 @@ End-to-end air-quality ML pipeline for **25 Seoul monitoring stations** (3 years
 | [6. Dashboard](docs/6-dashboard.md) | Streamlit app and Next.js frontend ([`frontend/`](frontend/)), 6 tabs each over BigQuery + predictions |
 | [7. Experiments Log](docs/7-experiments.md) | Raw journal: 9 forecasting + 2 anomaly experiments with ablation studies |
 | [8. Production Roadmap](docs/8-production-roadmap.md) | What shipped vs. what the next iteration would add (ingestion, monitoring, alerting, retraining) |
-| [9. GCP Exit Plan](docs/9-gcp-exit-plan.md) | Migration plan to run both dashboards off DuckDB + Cloudflare R2 once the GCP free trial ends. Not yet executed. |
+| [9. GCP Exit Plan](docs/9-gcp-exit-plan.md) | Migration plan off GCP after the free trial. **Phase 1 (read-layer) executed 2026-04-17**: both dashboards run from a committed Parquet snapshot via DuckDB by default (`DATA_BACKEND=parquet`); set `DATA_BACKEND=bigquery` to flip back to BigQuery. |
 
 **Decisions:** [decisions.md](decisions.md) — 4 architectural decision records (unpivot, direct-vs-recursive, anomaly baseline, log1p+CQR).
 
@@ -115,6 +115,8 @@ graph TB
 ```
 
 The **data layer** owns all transformations; everything downstream reads from `measurements_clean` in the `logic` dataset. The **ML layer** trains per-station, per-pollutant models (forecasting and anomaly are independent pipelines sharing the same cleaned data). The **serving layer** loads serialized pipelines at startup and exposes them through typed schemas. The **dashboard** reads directly from BigQuery + prediction CSVs.
+
+> **Demo / free-tier mode**: the dashboards' read layer is pluggable via `DATA_BACKEND` (default `parquet`). In `parquet` mode, Streamlit and Next.js read [`data/dashboard_wide.parquet`](data/dashboard_wide.parquet) — a snapshot of the dbt presentation layer — via DuckDB. Set `DATA_BACKEND=bigquery` to hit BigQuery instead. The dbt pipeline, ML training (`src/`), Terraform infrastructure, and CI workflows are unchanged — they still describe the production GCP setup. See [docs/9](docs/9-gcp-exit-plan.md).
 
 ---
 
